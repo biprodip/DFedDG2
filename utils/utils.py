@@ -9,6 +9,26 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 
+def count_params(client, comm_algo):
+        tot_param = 0
+        if comm_algo=='comm_dis_pfl':
+            total_params_to_send, non_zero_params, mask_params = client.count_params()  #from model and masks
+            print(f'Parameters of client: total: {total_params_to_send}, non_zero_params: {non_zero_params} mask: {mask_params}')
+
+        elif comm_algo=='comm_gossip' or comm_algo=='comm_penz':
+            model_params = client.count_params()  #from model and masks
+            print(f'Total parameters of client: {model_params}')
+
+        elif comm_algo=='comm_decood_w':
+            proto_params, model_params = client.count_params()  #from model and masks  
+            print(f'Parameters of client: all_class_proto_params : {proto_params} model_params : {model_params}')
+        
+        else:
+            print('utils.py: Prototype count function undefined for specified algorithm!')
+
+
+
+
 def get_matrix_cosine_similarity_from_grads(local_model_grads):
     """
     return the similarity matrix where the distance chosen to
@@ -66,7 +86,7 @@ def evaluate_clients(clients, test_loader=None):
        test_acc, test_auc, test_unc = clients[i].performance_test()
        #clients[i].l_test_loss_hist.append(rl_loss)
        clients[i].l_test_acc_hist.append(test_acc)
-       print(f'Client id: {clients[i].id}, Lacc: {test_acc:.2f}')
+       print(f'Client id: {clients[i].id}, Test Lacc: {test_acc:.2f}')
 
        round_avg_lacc += test_acc   
    
@@ -188,7 +208,7 @@ def clients_to_communicate_with(args, client, clients):
     
     elif args.neighbour_selection == "loss_based":
         #selected if greater than avg 1/loss of all peers
-        print('\nLoss based neighbor selection')
+        print('\nLoss based neighbor selection in penz')
         # Sample 10 times
         
         for _ in range(args.n_samplings):
@@ -198,7 +218,7 @@ def clients_to_communicate_with(args, client, clients):
             other_clients_metric = OrderedDict()
             for other_client in clients_to_consider:
                 #get the loss
-                train_loss,acc, auc, unc = client.performance_train(other_client.val_loader)
+                train_loss,acc, auc, unc = client.performance_train(other_client.train_loader)
                 #train_loss, train_acc = evaluate(client.model, other_client.train_loader)
                 other_clients_metric[other_client] = 1 / (train_loss + 1e-5) #zero div protection
             

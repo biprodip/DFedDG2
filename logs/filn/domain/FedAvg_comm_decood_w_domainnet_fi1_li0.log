@@ -1,0 +1,127 @@
+Centralized aggregator proto(cont).
+==> Clients initialization..
+===> Building data iterators..
+Unique labelsin domainnet data: ['bird' 'feather' 'headphones' 'ice_cream' 'teapot' 'tiger' 'whale'
+ 'windmill' 'wine_glass' 'zebra']
+Unique labelsin domainnet data: ['bird' 'feather' 'headphones' 'ice_cream' 'teapot' 'tiger' 'whale'
+ 'windmill' 'wine_glass' 'zebra']
+===> Initializing clients..
+Centralized aggregator used.
+In aggregation,py. #clients per round : 2
+Global Train Loss: 2.410 | Train Acc: 6.152% |GlobalTest Loss: 2.440 | Test Acc: 5.567% |
+Training..................
+Global Train Loss: 2.234 | Train Acc: 22.566% |GlobalTest Loss: 2.252 | Test Acc: 21.641% |
+Global Train Loss: 1.924 | Train Acc: 46.503% |GlobalTest Loss: 1.995 | Test Acc: 39.027% |
+Global Train Loss: 1.661 | Train Acc: 58.951% |GlobalTest Loss: 1.719 | Test Acc: 52.573% |
+Global Train Loss: 1.434 | Train Acc: 59.381% |GlobalTest Loss: 1.456 | Test Acc: 59.319% |
+Global Train Loss: 1.350 | Train Acc: 62.594% |GlobalTest Loss: 1.365 | Test Acc: 62.574% |
+Global Train Loss: 1.095 | Train Acc: 65.763% |GlobalTest Loss: 1.099 | Test Acc: 66.328% |
+Global Train Loss: 0.793 | Train Acc: 80.634% |GlobalTest Loss: 0.836 | Test Acc: 78.284% |
+Global Train Loss: 0.633 | Train Acc: 83.143% |GlobalTest Loss: 0.725 | Test Acc: 79.537% |
+Global Train Loss: 0.699 | Train Acc: 79.868% |GlobalTest Loss: 0.792 | Test Acc: 74.744% |
+Global Train Loss: 0.539 | Train Acc: 85.252% |GlobalTest Loss: 0.574 | Test Acc: 83.628% |
+Global Train Loss: 0.517 | Train Acc: 83.653% |GlobalTest Loss: 0.574 | Test Acc: 83.628% |
+Global Train Loss: 0.482 | Train Acc: 85.634% |GlobalTest Loss: 0.502 | Test Acc: 86.153% |
+Global Train Loss: 0.462 | Train Acc: 83.809% |GlobalTest Loss: 0.502 | Test Acc: 85.108% |
+Global Train Loss: 0.307 | Train Acc: 91.174% |GlobalTest Loss: 0.448 | Test Acc: 87.028% |
+Global Train Loss: 0.283 | Train Acc: 93.239% |GlobalTest Loss: 0.407 | Test Acc: 87.904% |
+Global Train Loss: 0.258 | Train Acc: 92.124% |GlobalTest Loss: 0.350 | Test Acc: 89.144% |
+Global Train Loss: 0.318 | Train Acc: 90.535% |GlobalTest Loss: 0.349 | Test Acc: 88.506% |
+Global Train Loss: 0.229 | Train Acc: 93.188% |GlobalTest Loss: 0.275 | Test Acc: 91.345% |
+Global Train Loss: 0.175 | Train Acc: 95.201% |GlobalTest Loss: 0.276 | Test Acc: 91.686% |
+Global Train Loss: 0.148 | Train Acc: 95.088% |GlobalTest Loss: 0.287 | Test Acc: 91.117% |
+Global Train Loss: 0.138 | Train Acc: 95.518% |GlobalTest Loss: 0.290 | Test Acc: 90.521% |
+Global Train Loss: 0.162 | Train Acc: 94.347% |GlobalTest Loss: 0.290 | Test Acc: 90.521% |
+Global Train Loss: 0.119 | Train Acc: 96.230% |GlobalTest Loss: 0.253 | Test Acc: 92.531% |
+Global Train Loss: 0.114 | Train Acc: 96.117% |GlobalTest Loss: 0.226 | Test Acc: 93.873% |
+Global Train Loss: 0.099 | Train Acc: 97.334% |GlobalTest Loss: 0.211 | Test Acc: 93.946% |
+Global Train Loss: 0.108 | Train Acc: 96.339% |GlobalTest Loss: 0.265 | Test Acc: 92.777% |
+Global Train Loss: 0.155 | Train Acc: 95.401% |GlobalTest Loss: 0.347 | Test Acc: 89.681% |
+Global Train Loss: 0.088 | Train Acc: 96.704% |GlobalTest Loss: 0.247 | Test Acc: 93.408% |
+Global Train Loss: 0.068 | Train Acc: 97.735% |GlobalTest Loss: 0.248 | Test Acc: 92.869% |
+Global Train Loss: 0.088 | Train Acc: 96.777% |GlobalTest Loss: 0.223 | Test Acc: 93.692% |
+Global Train Loss: 0.091 | Train Acc: 96.758% |GlobalTest Loss: 0.229 | Test Acc: 93.778% |
+Global Train Loss: 0.101 | Train Acc: 96.906% |GlobalTest Loss: 0.237 | Test Acc: 93.555% |
+Global Train Loss: 0.086 | Train Acc: 97.802% |GlobalTest Loss: 0.237 | Test Acc: 93.555% |
+Global Train Loss: 0.073 | Train Acc: 97.954% |GlobalTest Loss: 0.218 | Test Acc: 93.974% |
+Global Train Loss: 0.096 | Train Acc: 97.522% |GlobalTest Loss: 0.232 | Test Acc: 93.332% |
+Global Train Loss: 0.047 | Train Acc: 98.355% |GlobalTest Loss: 0.200 | Test Acc: 93.619% |
+Global Train Loss: 0.061 | Train Acc: 98.349% |GlobalTest Loss: 0.205 | Test Acc: 94.055% |
+Global Train Loss: 0.065 | Train Acc: 97.954% |GlobalTest Loss: 0.204 | Test Acc: 93.906% |
+Global Train Loss: 0.030 | Train Acc: 99.144% |GlobalTest Loss: 0.199 | Test Acc: 93.977% |
+Global Train Loss: 0.044 | Train Acc: 98.950% |GlobalTest Loss: 0.200 | Test Acc: 94.199% |
+Global Train Loss: 0.042 | Train Acc: 98.510% |GlobalTest Loss: 0.213 | Test Acc: 93.779% |
+Global Train Loss: 0.037 | Train Acc: 98.750% |GlobalTest Loss: 0.235 | Test Acc: 93.686% |
+Global Train Loss: 0.024 | Train Acc: 99.539% |GlobalTest Loss: 0.246 | Test Acc: 93.413% |
+Global Train Loss: 0.037 | Train Acc: 98.950% |GlobalTest Loss: 0.246 | Test Acc: 93.413% |
+Global Train Loss: 0.036 | Train Acc: 99.345% |GlobalTest Loss: 0.253 | Test Acc: 93.358% |
+Global Train Loss: 0.028 | Train Acc: 99.345% |GlobalTest Loss: 0.258 | Test Acc: 93.008% |
+Global Train Loss: 0.039 | Train Acc: 98.750% |GlobalTest Loss: 0.254 | Test Acc: 93.210% |
+Global Train Loss: 0.042 | Train Acc: 98.950% |GlobalTest Loss: 0.229 | Test Acc: 94.076% |
+Global Train Loss: 0.022 | Train Acc: 99.800% |GlobalTest Loss: 0.222 | Test Acc: 94.158% |
+Global Train Loss: 0.021 | Train Acc: 99.739% |GlobalTest Loss: 0.213 | Test Acc: 94.159% |
+Global Train Loss: 0.020 | Train Acc: 99.539% |GlobalTest Loss: 0.219 | Test Acc: 93.955% |
+Global Train Loss: 0.017 | Train Acc: 99.739% |GlobalTest Loss: 0.229 | Test Acc: 93.742% |
+Global Train Loss: 0.024 | Train Acc: 99.345% |GlobalTest Loss: 0.230 | Test Acc: 93.667% |
+Global Train Loss: 0.017 | Train Acc: 100.000% |GlobalTest Loss: 0.223 | Test Acc: 93.730% |
+Global Train Loss: 0.021 | Train Acc: 99.605% |GlobalTest Loss: 0.223 | Test Acc: 93.730% |
+Global Train Loss: 0.028 | Train Acc: 99.138% |GlobalTest Loss: 0.229 | Test Acc: 93.178% |
+Global Train Loss: 0.034 | Train Acc: 99.587% |GlobalTest Loss: 0.232 | Test Acc: 93.312% |
+Global Train Loss: 0.043 | Train Acc: 98.946% |GlobalTest Loss: 0.239 | Test Acc: 93.110% |
+Global Train Loss: 0.034 | Train Acc: 99.292% |GlobalTest Loss: 0.241 | Test Acc: 93.320% |
+Global Train Loss: 0.026 | Train Acc: 99.259% |GlobalTest Loss: 0.252 | Test Acc: 92.696% |
+Global Train Loss: 0.022 | Train Acc: 99.499% |GlobalTest Loss: 0.253 | Test Acc: 92.467% |
+Global Train Loss: 0.030 | Train Acc: 98.864% |GlobalTest Loss: 0.252 | Test Acc: 92.334% |
+Global Train Loss: 0.027 | Train Acc: 99.499% |GlobalTest Loss: 0.248 | Test Acc: 92.809% |
+Global Train Loss: 0.019 | Train Acc: 99.499% |GlobalTest Loss: 0.241 | Test Acc: 92.751% |
+Global Train Loss: 0.021 | Train Acc: 99.520% |GlobalTest Loss: 0.238 | Test Acc: 92.824% |
+Global Train Loss: 0.018 | Train Acc: 99.259% |GlobalTest Loss: 0.238 | Test Acc: 92.824% |
+Global Train Loss: 0.017 | Train Acc: 99.739% |GlobalTest Loss: 0.231 | Test Acc: 93.178% |
+Global Train Loss: 0.015 | Train Acc: 99.499% |GlobalTest Loss: 0.234 | Test Acc: 93.387% |
+Global Train Loss: 0.017 | Train Acc: 99.499% |GlobalTest Loss: 0.228 | Test Acc: 93.515% |
+Global Train Loss: 0.016 | Train Acc: 99.739% |GlobalTest Loss: 0.236 | Test Acc: 93.370% |
+Global Train Loss: 0.019 | Train Acc: 99.345% |GlobalTest Loss: 0.245 | Test Acc: 93.162% |
+Global Train Loss: 0.017 | Train Acc: 99.739% |GlobalTest Loss: 0.241 | Test Acc: 93.086% |
+Global Train Loss: 0.017 | Train Acc: 99.739% |GlobalTest Loss: 0.238 | Test Acc: 93.229% |
+Global Train Loss: 0.014 | Train Acc: 99.739% |GlobalTest Loss: 0.236 | Test Acc: 93.228% |
+Global Train Loss: 0.014 | Train Acc: 99.345% |GlobalTest Loss: 0.221 | Test Acc: 93.567% |
+Global Train Loss: 0.010 | Train Acc: 99.739% |GlobalTest Loss: 0.220 | Test Acc: 93.709% |
+Global Train Loss: 0.010 | Train Acc: 99.739% |GlobalTest Loss: 0.220 | Test Acc: 93.709% |
+Global Train Loss: 0.010 | Train Acc: 99.739% |GlobalTest Loss: 0.219 | Test Acc: 93.920% |
+Global Train Loss: 0.011 | Train Acc: 99.739% |GlobalTest Loss: 0.217 | Test Acc: 93.922% |
+Global Train Loss: 0.008 | Train Acc: 99.739% |GlobalTest Loss: 0.209 | Test Acc: 94.058% |
+Global Train Loss: 0.013 | Train Acc: 99.739% |GlobalTest Loss: 0.208 | Test Acc: 94.131% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.204 | Test Acc: 94.123% |
+Global Train Loss: 0.011 | Train Acc: 99.739% |GlobalTest Loss: 0.203 | Test Acc: 94.344% |
+Global Train Loss: 0.007 | Train Acc: 100.000% |GlobalTest Loss: 0.197 | Test Acc: 94.496% |
+Global Train Loss: 0.010 | Train Acc: 99.739% |GlobalTest Loss: 0.197 | Test Acc: 94.353% |
+Global Train Loss: 0.007 | Train Acc: 100.000% |GlobalTest Loss: 0.197 | Test Acc: 94.282% |
+Global Train Loss: 0.008 | Train Acc: 99.739% |GlobalTest Loss: 0.199 | Test Acc: 94.289% |
+Global Train Loss: 0.008 | Train Acc: 99.739% |GlobalTest Loss: 0.199 | Test Acc: 94.289% |
+Global Train Loss: 0.007 | Train Acc: 99.739% |GlobalTest Loss: 0.197 | Test Acc: 94.367% |
+Global Train Loss: 0.007 | Train Acc: 99.739% |GlobalTest Loss: 0.202 | Test Acc: 94.574% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.205 | Test Acc: 94.278% |
+Global Train Loss: 0.008 | Train Acc: 99.739% |GlobalTest Loss: 0.213 | Test Acc: 93.854% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.214 | Test Acc: 93.716% |
+Global Train Loss: 0.008 | Train Acc: 99.739% |GlobalTest Loss: 0.214 | Test Acc: 93.648% |
+Global Train Loss: 0.007 | Train Acc: 100.000% |GlobalTest Loss: 0.217 | Test Acc: 93.733% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.222 | Test Acc: 93.522% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.222 | Test Acc: 93.593% |
+Global Train Loss: 0.010 | Train Acc: 99.739% |GlobalTest Loss: 0.217 | Test Acc: 93.593% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.217 | Test Acc: 93.593% |
+Global Train Loss: 0.012 | Train Acc: 99.739% |GlobalTest Loss: 0.222 | Test Acc: 93.733% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.221 | Test Acc: 93.452% |
+Global Train Loss: 0.010 | Train Acc: 99.739% |GlobalTest Loss: 0.221 | Test Acc: 93.800% |
+Global Train Loss: 0.008 | Train Acc: 99.739% |GlobalTest Loss: 0.216 | Test Acc: 93.802% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.220 | Test Acc: 94.018% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.228 | Test Acc: 94.160% |
+Global Train Loss: 0.003 | Train Acc: 100.000% |GlobalTest Loss: 0.235 | Test Acc: 93.807% |
+Global Train Loss: 0.011 | Train Acc: 99.739% |GlobalTest Loss: 0.231 | Test Acc: 94.230% |
+Global Train Loss: 0.009 | Train Acc: 99.739% |GlobalTest Loss: 0.233 | Test Acc: 94.089% |
+Global Train Loss: 0.012 | Train Acc: 99.739% |GlobalTest Loss: 0.234 | Test Acc: 93.944% |
+Global Train Loss: 0.011 | Train Acc: 99.739% |GlobalTest Loss: 0.234 | Test Acc: 93.944% |
+Global Train Loss: 0.011 | Train Acc: 99.739% |GlobalTest Loss: 0.237 | Test Acc: 94.087% |
+Mean accuracy for each client: tensor([0.9261, 0.9375, 0.9375, 0.9635, 0.9344])
+Standard deviation for each client: tensor([nan, nan, nan, nan, nan])
+Mean global test accuracy: 0.940865159034729
+Standard deviation for global test accuracy: nan

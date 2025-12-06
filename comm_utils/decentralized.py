@@ -1,6 +1,11 @@
 import cvxpy as cp
 import networkx as nx
 import numpy as np
+import os
+from comm_utils.mst import *
+import pickle
+
+
 
 
 def get_communication_graph(n, p, seed):
@@ -34,13 +39,17 @@ def compute_mixing_matrix(adjacency_matrix):
     prob = cp.Problem(objective, constraints)
     prob.solve()
 
+    if W.value is None:
+        raise ValueError("Optimization problem did not converge.")
+
+
     mixing_matrix = W.value
 
     mixing_matrix *= adjacency_matrix
-
     mixing_matrix = np.multiply(mixing_matrix, mixing_matrix >= 0)
 
-    # Force symmetry (added for numerical stability)
+
+    # Force symmetry (for numerical stability)
     for i in range(N):
         if np.abs(np.sum(mixing_matrix[i, i:])) >= 1e-20:
             mixing_matrix[i, i:] *= (1 - np.sum(mixing_matrix[i, :i])) / np.sum(mixing_matrix[i, i:])
@@ -49,8 +58,45 @@ def compute_mixing_matrix(adjacency_matrix):
     return mixing_matrix
 
 
-def get_mixing_matrix(n, p, seed):
-    graph = get_communication_graph(n, p, seed)
-    adjacency_matrix = nx.adjacency_matrix(graph, weight=None).todense()
 
-    return compute_mixing_matrix(adjacency_matrix)
+def get_mixing_matrix(args, n, p, seed):
+    
+    if n==4:
+        p = 0.6 #for FNLI setup only; Default: p is proportional to sampling rate in server based FL
+        seed = 7
+    else:
+        seed = 3 #converges for cvx problem with this value, for more than 4 clients
+    
+    filename = 'sparse_adj_'
+
+    # Construct the relative file path
+    relative_path = 'data/' + filename + str(args.num_clients) + '.pkl'
+
+    # Convert to absolute path
+    absolute_path = os.path.abspath(relative_path) 
+    
+    #load saved adj mat
+    if os.path.isfile(relative_path):
+        print(f'Found {absolute_path} adjacency matrix file.')
+        with open(relative_path, 'rb') as f:
+            mixing_mat, mst = pickle.load(f)
+            f.close()
+            print('Adjacency and MST Loaded from file.')
+            print('Loaded Erdos Renoyi graph for sparse topology.')
+    else:
+        print(f'Adjacency matrix {absolute_path} file not found.')
+        #create mixing matrix
+        graph = get_communication_graph(n, p, seed)
+        adj_mat = nx.adjacency_matrix(graph, weight=None).todense()
+        mixing_mat = compute_mixing_matrix(adj_mat)
+        print('Created Erdos Renoyi graph for sparse topology.')
+        print(f'Adjacency_matrix : {adj_mat}')
+        
+        #get mst
+        mst = get_mst(adj_mat)
+        with open(relative_path, 'wb') as f: 
+                pickle.dump([mixing_mat, mst], f)
+                f.close()
+                print('Adjacency, MST and Mixing Matrix saved in'+'data/'+filename+str(args.num_clients)+'.pkl')
+    
+    return mixing_mat

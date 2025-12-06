@@ -1,5 +1,26 @@
 from utils.utils_proto import *
-import pickle
+from collections import defaultdict
+import json
+import time
+import random
+import numpy as np
+# from proco_utils import neighbor_gossip_weights
+import torch.nn.functional as F
+# from proco.proco import miller_recurrence      # already in ProCo repo
+# from scipy.special import ive
+from comm_utils.decentralized import *
+
+
+def make_doubly_stochastic(W, iters=5, eps=1e-12):
+    # W: [N,N] row-stochastic (rows already sum to 1)
+    for _ in range(iters):
+        col_sum = W.sum(0, keepdim=True).clamp_min(eps)
+        W /= col_sum                       # make columns sum to 1
+        row_sum = W.sum(1, keepdim=True).clamp_min(eps)
+        W /= row_sum                       # restore rows = 1
+    return W
+
+
 
 def comm_gossip(args, adj, clients, debug=False, test_loader=None):
     '''
@@ -33,26 +54,30 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
        print(f"Updating client {c.id}")
        c.update()
     
-
+    local_times, gossip_times = [], []
     for e in range(args.num_rounds):
-        
-        if args.check_running:
-            if e%5 == 0:
-                user_in = input(f"0/1 break/cont: ")
-                if user_in == '0':
-                    print('Exit learning.')
-                    break #model will be saved
 
-
-        print(f'Round : {e}')
+        print(f'\nRound : {e}')
         # Update each client
-    
+
+
+        if args.dynamic_topo == 1:
+            #create new graph every round
+            graph = get_communication_graph(adj.shape[0], 0.5, 3+e) #p=0.5 seed=3
+            adj_mat = nx.adjacency_matrix(graph, weight=None).todense()
+            adj = torch.from_numpy(np.array(adj_mat)).float().to(clients[0].device)
+            adj = make_doubly_stochastic(adj) 
+            print(f'New mixing mat: {adj}')
+
+
+
         for m in clients:
             print(f'Updating {m.id}')
-            if args.algorithm == 'Ditto':
-              m.ptrain()
-            m.update()
-            print(f'Performance: {m.performance_test()}\n')
+            start = time.perf_counter()
+            m.update()  # one local epoch
+            end = time.perf_counter()
+            local_times.append(end - start)            
+            # print(f'Performance: {m.performance_test()}\n')
 
 
 
@@ -66,10 +91,13 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
         for i in range(len(clients)):
           new_models.append(copy.deepcopy(clients[i].model.state_dict()))   
           
-         
+        tg0 = time.perf_counter()
         # Start averaging towards the goal. Here we use equal neighbor averaging method.
         for i in range(len(clients)):
           
+          #No_of_sample = int(len(clients)* args.sampling)
+          # random_client_ids = [random.randint(0, len(clients) - 1) for _ in range(No_of_sample)]
+
           # Select clients to train and participate in averaging
           adj_clients = [clients[c] for c in range(len(clients)) if (adj[c][i] and c!=i)]
           
@@ -82,48 +110,32 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
                   
           
           #sel_neighbors = [adj_clients[j] for j in sel_neighbor_indx] 
-          sel_neighbors = adj_clients
+          neighbors = adj_clients
 
-              
-          #id -id communication count
-          s_c = [c.id for c in sel_neighbors]
-          # for peer in s_c:
-          #     client_heat[clients[i].id][peer]+=1  #count communication
-          #     client_heat[peer][clients[i].id]+=1W0 = [tens.detach() for tens in list(self.model0.parameters())] #weight now
-        # Wt = [tens.detach() for tens in list(self.model.parameters())] #previous weight
-        
             
-          N = 0
-          for sc in sel_neighbors:
-            N = N + len(sc.train_loader.dataset) 
-          #self
-          N = N + len(clients[i].train_loader.dataset)
-
-          #self weight
-          W = len(clients[i].train_loader.dataset)/N
-          for key in clients[i].model.state_dict().keys():              
-            new_models[i][key] = W * clients[i].model.state_dict()[key]
-
+          for key in clients[i].model.state_dict().keys():
+              new_models[i][key] = adj[i][i] * clients[i].model.state_dict()[key]
           
-          for sc in sel_neighbors:
-            # Record each key's value, while also keeping track of distance
+          # for sc in neighbors:
+          #     for key in sc.model.state_dict().keys():
+          #         new_models[i][key] += adj[i][sc.id] * sc.model.state_dict()[key]
             
-            W = len(sc.train_loader.dataset)/N
-            for key in sc.model.state_dict().keys():  
-              new_models[i][key] += W * sc.model.state_dict()[key]
 
-            # for key in sc.model.state_dict().keys():              
-            #   new_models[i][key] += sc.model.state_dict()[key]    
-            
-        
-        
-            
+          for sc in neighbors:
+              if len(adj_clients)>1: # and sc.id in random_client_ids:  #sampling from adjacents     #if random selection from adjacents
+                for key in sc.model.state_dict().keys():
+                  new_models[i][key] += adj[i][sc.id] * sc.model.state_dict()[key]
+
+
+
         # average and update self
         for i in range(len(clients)):
                 #clients[i].avg_model(new_models[i], Ni[i]) #N[i]: tot neighbors of client i each round
                 clients[i].avg_model(new_models[i], 1) #N[i]: tot neighbors of client i each round
                 print(f'Aggregated client {i}')
-                
+        
+        tg1 = time.perf_counter()
+        gossip_times.append(tg1 - tg0)        
 
        #list every round avg performance of all clients (local test data and global test data)
        #lacc, gacc, lauc, gauc, lunc, gunc = evaluate_clients(clients, test_loader)
@@ -139,11 +151,15 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
 
         
         # Normalize the matrix
-        #client_heat = (client_heat - np.min(client_heat)) / (np.max(client_heat) - np.min(client_heat))
+        # Client_heat = (client_heat - np.min(client_heat)) / (np.max(client_heat) - np.min(client_heat))
         # Set diagonal elements to zero
         np.fill_diagonal(client_heat, 0)
 
-    
+        mean_local  = sum(local_times) / len(local_times)
+        mean_gossip = sum(gossip_times) / len(gossip_times) / args.num_rounds  # per round
+        print(f'Mean local time:{mean_local}, Mean gossip time:{mean_gossip}')
+
+
     # for c in clients:
     #     #save client_models
     #     filename = args.params_dir + 'checkpoint_{}_{}_client_{}.pth.tar'.format(args.algorithm, args.dataset, c.id)

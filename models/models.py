@@ -7,6 +7,7 @@ import torchvision.models as models
 #import torch.optim as optim
 #from torchvision import datasets, transforms
 #from torch.optim.lr_scheduler import StepLR
+# from torchvision.models import MobileNet_V2_Weights
 
 class MLP(nn.Module):
     def __init__(self, dim_in, dim_hidden, dim_out):
@@ -28,23 +29,24 @@ class MLP(nn.Module):
 
 
 class CNNMnist(nn.Module):
-    def __init__(self, in_features=1, num_classes=10, dim=1024):
+    def __init__(self, in_features=1, num_classes=10, out_channel=64, proj_dim = 512):
         super().__init__()
+        print(f'Using: {out_channel} output channel.')
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_features, 32, kernel_size=5, padding=0, stride=1, bias=True),
             nn.ReLU(inplace=True), 
             nn.MaxPool2d(kernel_size=(2, 2))
         )
         self.conv2 = nn.Sequential(
-            nn.Conv2d(32, 64, kernel_size=5, padding=0, stride=1, bias=True),
+            nn.Conv2d(32, out_channel, kernel_size=5, padding=0, stride=1, bias=True),
             nn.ReLU(inplace=True), 
             nn.MaxPool2d(kernel_size=(2, 2))
         )
         self.fc1 = nn.Sequential(
-            nn.Linear(dim, 512), 
+            nn.Linear(out_channel*4*4, proj_dim), 
             nn.ReLU(inplace=True)
         )
-        self.fc = nn.Linear(512, num_classes)     #feature deimension 512
+        self.fc = nn.Linear(proj_dim, num_classes)     #feature deimension 512
 
     def forward(self, x):
         out = self.conv1(x)
@@ -53,6 +55,30 @@ class CNNMnist(nn.Module):
         out = self.fc1(out)
         out = self.fc(out)
         return out
+
+
+
+
+
+#model heterogenity
+class CNNMnistMH(nn.Module):
+    def __init__(self, args):
+        super(CNNMnist, self).__init__()
+        self.conv1 = nn.Conv2d(args.num_channels, 10, kernel_size=5)
+        self.conv2 = nn.Conv2d(10, args.out_channels, kernel_size=5)
+        self.conv2_drop = nn.Dropout2d()
+        self.fc1 = nn.Linear(int(320/20*args.out_channels), 50)
+        self.fc2 = nn.Linear(50, args.num_classes)
+
+    def forward(self, x):
+        x = F.relu(F.max_pool2d(self.conv1(x), 2))
+        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+        x = x.view(-1, x.shape[1]*x.shape[2]*x.shape[3])
+        x1 = F.relu(self.fc1(x))
+        x = F.dropout(x1, training=self.training)
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1), x1
+
 
 
 
@@ -200,22 +226,7 @@ class BaseHeadSplit(nn.Module):
         return 
 
 
-# PFLlib: Personalized Federated Learning Algorithm Library
-# Copyright (C) 2021  Jianqing Zhang
 
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-
-# You should have received a copy of the GNU General Public License along
-# with this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import torch.nn as nn
 from torch import Tensor
@@ -510,7 +521,7 @@ def resnet8(**kwargs: Any) -> ResNet: # 8 = 2 + 2 * (1 + 1 + 1)
 
 
 def get_mobilenet(n_classes):
-    model = models.mobilenet_v2(pretrained=True)
+    model = models.mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V1)
     model.classifier[1] = nn.Linear(model.classifier[1].in_features, n_classes)
     return model
 

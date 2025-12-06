@@ -118,6 +118,7 @@ class Aggregator(ABC):
         self.sampling_rate = sampling_rate
         self.sample_with_replacement = sample_with_replacement
         self.n_clients_per_round = max(1, int(self.sampling_rate * self.n_clients))
+        print(f"In aggregation,py. #clients per round : {self.n_clients_per_round}")
         self.sampled_clients = list()
 
         self.c_round = 0
@@ -194,15 +195,15 @@ class Aggregator(ABC):
             global_test_acc /= total_n_test_samples
 
             if self.verbose > 0:
-                print("+" * 30)
-                print("Global..")
+                # print("+" * 30)
+                # print("Global..")
                 if num_trials == 1:
-                    print(f"Train Loss: {global_train_loss:.3f} | Train Acc: {global_train_acc * 100:.3f}% |", end="")
-                    print(f"Test Loss: {global_test_loss:.3f} | Test Acc: {global_test_acc * 100:.3f}% |")
+                    print(f"Global Train Loss: {global_train_loss:.3f} | Train Acc: {global_train_acc * 100:.3f}% |", end="")
+                    print(f"GlobalTest Loss: {global_test_loss:.3f} | Test Acc: {global_test_acc * 100:.3f}% |")
                 else:
-                    print(f"Trial {curr_trial} Train Loss: {global_train_loss:.3f} | Train Acc: {global_train_acc * 100:.3f}% |", end="")
-                    print(f"Trial {curr_trial} Test Loss: {global_test_loss:.3f} | Test Acc: {global_test_acc * 100:.3f}% |")
-                print("+" * 50)
+                    print(f"Trial {curr_trial} Global Train Loss: {global_train_loss:.3f} | Train Acc: {global_train_acc * 100:.3f}% |", end="")
+                    print(f"Trial {curr_trial} Global Test Loss: {global_test_loss:.3f} | Test Acc: {global_test_acc * 100:.3f}% |")
+                # print("+" * 50)
 
             global_logger.add_scalar("Train/Loss", global_train_loss, self.c_round)
             global_logger.add_scalar("Train/Metric", global_train_acc, self.c_round)
@@ -210,9 +211,10 @@ class Aggregator(ABC):
             global_logger.add_scalar("Test/Metric", global_test_acc, self.c_round)
 
 
-        if self.verbose > 0:
-            print("#" * 80)
-
+        # if self.verbose > 0:
+        #     print("#" * 80)
+    
+        return global_train_acc
 
 
     def save_state(self, dir_path):
@@ -342,7 +344,7 @@ class CentralizedAggregatorCont(Aggregator):
      All clients get fully synchronized with the average client.
 
     """
-    print('Centralized aggregator proto.')
+    print('Centralized aggregator proto(cont).')
 
     def mix(self):
         self.sample_clients()
@@ -847,6 +849,7 @@ class DecentralizedAggregator(Aggregator):
             seed=seed
         )
 
+        print('Decentralized aggregator used.')
         self.mixing_matrix = mixing_matrix
         assert self.sampling_rate >= 1, "partial sampling is not supported with DecentralizedAggregator"
 

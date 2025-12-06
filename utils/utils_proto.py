@@ -21,7 +21,7 @@ def evaluate_clients(clients, test_loader=None):
        test_acc, _, _ = clients[i].performance_test()
        #clients[i].l_test_loss_hist.append(rl_loss)
        clients[i].l_test_acc_hist.append(test_acc)
-       print(f'Client id: {clients[i].id}, Lacc: {test_acc:.2f}')
+       print(f'Client id: {clients[i].id}, Test Lacc: {test_acc:.2f}')    ################
 
        round_avg_lacc += test_acc   
        
@@ -88,6 +88,7 @@ def evaluate_clients_tmp(clients, test_loader):
 
 def clients_to_communicate_with(args, client, clients):
     '''
+    #From: paper PENS decentralized federated learning 
     param: args: arguments
            client: current client (c)
            clients : adjacent clients of c     
@@ -99,7 +100,7 @@ def clients_to_communicate_with(args, client, clients):
     weights = None
     
     adj = [c.id for c in clients]
-    ############################print(f'{client.id} and adjacents are {adj}')
+
     if args.neighbour_selection == "proto":  #loss based selection of n_neighbor and diversity based weight
         print('Proto similarity based neighbor selection')
         # Sample 10 times
