@@ -45,7 +45,7 @@ timestamp="$(date +%Y%m%d_%H%M%S)"
 log_file="logs/experiments/${algorithm}_${comm}_${dataset}_fi${feature_iid}_li${label_iid}_topo${topo}_dist_${dist}_clients${num_clients}_${timestamp}.log"
 
 # ----------------- Run -----------------
-python run_trainer_pcl_multi_iter.py \
+python run_trainer_dfeddg2.py \
   --algorithm "${algorithm}" \
   --comm "${comm}" \
   --topo "${topo}" \
