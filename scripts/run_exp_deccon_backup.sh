@@ -25,11 +25,10 @@ data_dir='../FedPCL/data/'
 save_folder_name='results/'
 params_dir='params/'
 
-# Optional: seed (if you want to override default in Python)
 # seed=1234
 
 # ----------------- Setup -----------------
-cd '/scratch3/pal194/deccon/'
+# cd '/scratch3/pal194/deccon/'
 
 # Ensure log and result folders exist
 mkdir -p logs/experiments
