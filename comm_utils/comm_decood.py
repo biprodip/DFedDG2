@@ -1,3 +1,20 @@
+"""comm_decood.py — Prototype-only gossip communication for DECOOD.
+
+This module implements the non-gossip decentralized communication round used by
+the 'decood' algorithm variant.  Unlike comm_vmf_gossip, there is **no** model
+weight exchange — only per-class prototype vectors are aggregated across graph
+neighbours.
+
+Key functions
+-------------
+receive_protos              : flat collection of neighbour prototypes (+ self).
+receive_grouped_protos      : split collection into neighbour vs. OOD-client protos.
+proto_aggregation           : uniform mean of prototype lists → normalised result.
+proto_aggregation_clustered : ID labels from neighbours; OOD labels from others.
+evaluate                    : thin wrapper around server-style test/train metrics.
+comm_decood                 : main training loop — local update then proto agg.
+"""
+
 from utils.utils_proto import *
 #from eval_submod import *
 from collections import defaultdict
@@ -5,48 +22,95 @@ import torch.nn.functional as F
 
 
 
-def receive_protos(client,sel_clients):
+def receive_protos(client, sel_clients):
+    """Collect local prototypes from selected neighbours and the client itself.
+
+    Args:
+        client: The aggregating client (self).  Its own prototypes are always
+            appended last so that proto_aggregation includes the self prototype.
+        sel_clients: List of neighbour client objects whose ``local_protos``
+            dicts will be included.
+
+    Returns:
+        tuple[list[dict], list[int]]:
+            - uploaded_protos: List of per-class prototype dicts, one per
+              contributing client (neighbours first, self last).
+            - uploaded_ids: Corresponding client IDs in the same order.
+    """
     assert (len(sel_clients) > 0)
 
     uploaded_ids = []
     uploaded_protos = []
-    
+
     for cl in sel_clients:
         uploaded_ids.append(cl.id)
         uploaded_protos.append(cl.local_protos)
 
-    
-    uploaded_protos.append(client.local_protos) #self protos for aggregation
+    uploaded_protos.append(client.local_protos)  # self protos for aggregation
     uploaded_ids.append(client.id)
-    return uploaded_protos,uploaded_ids
+    return uploaded_protos, uploaded_ids
 
 
 
 def receive_grouped_protos(client, neighbors, adjacents):
+    """Separate received prototypes into two groups: graph-neighbours vs. others.
+
+    In the clustered aggregation strategy, ID-class prototypes are taken from
+    actual graph neighbours (who share the same in-distribution classes), while
+    OOD-class prototypes are sourced from adjacent clients outside the neighbour
+    set.  If every adjacent client is a neighbour, ``rec_ood_protos`` will be
+    empty.
+
+    Args:
+        client: The aggregating client.  Its own ``local_protos`` are appended
+            to ``rec_neighbors_protos`` (treated as a self-neighbour).
+        neighbors: Subset of ``adjacents`` that are selected graph-neighbours
+            (used for ID-label protos).
+        adjacents: Full adjacency list — all graph-connected clients.
+
+    Returns:
+        tuple[list[dict], list[dict]]:
+            - rec_neighbors_protos: Prototype dicts from neighbours + self.
+            - rec_ood_protos: Prototype dicts from adjacent non-neighbours
+              (used to supply OOD-class prototypes).
+    """
     assert (len(adjacents) > 0)
-    # if all are neighhbors than only neighbor labels are available, ood protos(labels) are not available
-    # own proto
-    
+    # If all adjacents are neighbours, ood protos (labels) are not available
+    # via the non-neighbour path.
     n_ids = [c.id for c in neighbors]
 
     rec_neighbors_protos = []
     rec_ood_protos = []
-    
+
     for cl in adjacents:
         if cl.id in n_ids:
-            #print(f"{cl.id} is neighbor")
-            rec_neighbors_protos.append(cl.local_protos)  #all id  and ood from neighbors
-        else:    
-            #print(f"{cl.id} is not neighbor")
-            rec_ood_protos.append(cl.local_protos)        #all id  and ood from others
-    
-    rec_neighbors_protos.append(client.local_protos)      #self protos for aggregation
+            rec_neighbors_protos.append(cl.local_protos)  # ID and OOD protos from neighbours
+        else:
+            rec_ood_protos.append(cl.local_protos)        # ID and OOD protos from others
+
+    rec_neighbors_protos.append(client.local_protos)  # self protos for aggregation
     return rec_neighbors_protos, rec_ood_protos
 
 
 
 
-def proto_aggregation(local_protos_list,verbose = False):
+def proto_aggregation(local_protos_list, verbose=False):
+    """Uniformly average per-class prototypes across a list of client prototype dicts.
+
+    For each class label, the contributing prototype tensors are summed and
+    divided by their count, then L2-normalised (F.normalize, dim=0) so that the
+    result lives on the unit hypersphere — consistent with the cosine-similarity
+    objective used during training.
+
+    Args:
+        local_protos_list: List of dicts mapping class label → prototype tensor
+            (one dict per participating client including self).
+        verbose: If True, print the number of prototypes received per class.
+
+    Returns:
+        defaultdict[int, Tensor]: Aggregated normalised prototype per class
+            (detached from the computation graph).
+    """
     agg_protos_label = defaultdict(list)
 
     for local_protos in local_protos_list:   #every client protos set 
@@ -77,6 +141,29 @@ def proto_aggregation(local_protos_list,verbose = False):
 
 
 def proto_aggregation_clustered(client, labels, rec_neighbors_protos, rec_ood_protos):
+    """Aggregate prototypes with different sources for ID vs. OOD labels.
+
+    Strategy:
+      - **OOD labels** (classes absent locally): use prototypes from adjacent
+        non-neighbour clients (``rec_ood_protos``).  If unavailable there,
+        fall back to neighbour protos.
+      - **ID labels** (locally present classes): always sourced from neighbours
+        (``rec_neighbors_protos``), including self.
+
+    Unlike ``proto_aggregation``, the result is **not** L2-normalised — a
+    simple mean is used instead (see commented-out normalize line).
+
+    Args:
+        client: The aggregating client; its ``id_labels`` set defines which
+            classes are in-distribution for this client.
+        labels: Total number of classes (used to initialise ``protos_received``
+            boolean array).
+        rec_neighbors_protos: Prototype dicts from graph-neighbours + self.
+        rec_ood_protos: Prototype dicts from adjacent non-neighbour clients.
+
+    Returns:
+        defaultdict[int, Tensor]: Aggregated prototype per class (detached).
+    """
     agg_protos_label = defaultdict(list)
     protos_received = [False for _ in range(labels)]
             
@@ -119,8 +206,26 @@ def proto_aggregation_clustered(client, labels, rec_neighbors_protos, rec_ood_pr
 
 
 def evaluate(self, acc=None, loss=None):
-        stats = self.test_metrics()
-        stats_train = self.train_metrics()
+    """Compute and record test accuracy and training loss for a server-style client.
+
+    Calls ``self.test_metrics()`` and ``self.train_metrics()`` (server-side
+    methods), appends results to running history lists, and prints a summary.
+
+    Args:
+        self: Server or client object exposing ``test_metrics()``,
+            ``train_metrics()``, ``rs_test_acc``, and ``rs_train_loss``.
+        acc: External list to append test accuracy to.  If None, appends to
+            ``self.rs_test_acc`` instead.
+        loss: External list to append train loss to.  If None, appends to
+            ``self.rs_train_loss`` instead.
+
+    Note:
+        This function uses ``self`` as a positional argument, which means it
+        is *not* a method bound to a class — it must be called as
+        ``evaluate(server_obj)``.
+    """
+    stats = self.test_metrics()
+    stats_train = self.train_metrics()
 
         test_acc = sum(stats[2])*1.0 / sum(stats[1])
         train_loss = sum(stats_train[2])*1.0 / sum(stats_train[1])
@@ -145,13 +250,41 @@ def evaluate(self, acc=None, loss=None):
 
 
 def comm_decood(args, adj, clients, debug=False, test_loader=None):
-    '''
-    For a client i, Aggregates(FedAvg) all clients j if j is adjacent to i and (i!=j)
-    based on the adjacency matrics adj. 
-    Do only prototype aggregation no model aggregation
+    """Main training loop for the DECOOD (prototype-only gossip) algorithm.
 
-    Not random gossip (where adjacents are randomly selected).
-    '''
+    Each round proceeds in two phases:
+
+    1. **Local update** — every client runs one epoch of local training
+       (``client.update()``), computing the DECOOD loss on its own data.
+
+    2. **Prototype aggregation** — for each client *i*, adjacent clients
+       (``adj[c][i] == 1, c != i``) supply their ``local_protos``.  The mean
+       prototype per class is computed via ``proto_aggregation`` (or the
+       clustered variant if ``args.clustered_agg`` is True) and then pushed
+       back into the client via ``set_global_protos`` and
+       ``set_dis_loss_protos``.
+
+    Note: ``args.clustered_agg`` is hard-coded to ``False`` inside this
+    function; the clustered branch is present for experimental use only.
+
+    Args:
+        args: Experiment configuration namespace.  Relevant fields:
+            ``num_rounds``, ``global_seed``, ``num_clients``,
+            ``clustered_agg``, ``num_classes``.
+        adj: [N × N] adjacency tensor (float).  ``adj[c][i] == 1`` means
+            client *c* is a graph-neighbour of client *i*.
+        clients: List of client objects (one per federated node).
+        debug: Unused; reserved for future verbose logging.
+        test_loader: Unused in this function; evaluation is performed via
+            each client's own test loader through ``evaluate_clients``.
+
+    Returns:
+        list[float]: Per-round average local test accuracy across all clients.
+
+    Side effects:
+        Updates ``client.global_protos`` and ``DisLoss`` prototype buffers
+        in-place for every client each round.
+    """
         
     print('Comm Decood training.')
     random.seed(args.global_seed)

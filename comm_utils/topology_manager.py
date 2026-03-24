@@ -1,14 +1,51 @@
-import os 
-import pickle 
+"""topology_manager.py — Graph topology generation and adjacency-matrix caching.
+
+Provides helpers for generating weighted mixing matrices for ring, sparse, and
+fully-connected (fc) graph topologies used in decentralised FL, plus a weighted
+update function for data-heterogeneity-aware adjacency weights.
+
+Key functions
+-------------
+generate_asymmetric_topology      : Watts-Strogatz ring + random extra links,
+                                    row-normalised (asymmetric weights).
+generate_symmetric_ring_topology  : Pure ring (k=2 Watts-Strogatz), uniform
+                                    row weights.
+generate_symmetric_topology       : Ring + extra symmetric links, uniform
+                                    row weights.
+topology_manager                  : Load cached or create and cache a mixing
+                                    matrix for the requested topology.
+sinkhorn_normalization            : Iterative doubly-stochastic balancing
+                                    (numpy version).
+update_adjacency_matrix           : Re-weight edges by class-count overlap
+                                    and Sinkhorn-normalise.
+"""
+
+import os
+import pickle
 import networkx as nx
 import numpy as np
 from comm_utils.mst import *
-import pickle
 
 
 def generate_asymmetric_topology(undirected_neighbor_num, num_clients):
-        
-        n = num_clients
+    """Generate an asymmetrically-weighted adjacency matrix over a sparse graph.
+
+    Construction steps:
+      1. Start from a symmetric Watts-Strogatz ring with ``k`` neighbours.
+      2. Overlay additional random links (also Watts-Strogatz) for density.
+      3. Add a base ring topology to guarantee connectivity.
+      4. Randomly drop some directed links to create asymmetry.
+      5. Row-normalise so each row sums to 1 (row-stochastic, not doubly so).
+
+    Args:
+        undirected_neighbor_num: Target out-degree ``k`` for the Watts-Strogatz
+            random link overlay.
+        num_clients: Number of federated nodes (graph vertices).
+
+    Returns:
+        np.ndarray: [N × N] row-normalised (asymmetric) adjacency matrix.
+    """
+    n = num_clients
         # randomly add some links for each node (symmetric)
         k = undirected_neighbor_num
         # print("neighbors = " + str(k))
@@ -67,12 +104,21 @@ def generate_asymmetric_topology(undirected_neighbor_num, num_clients):
 
 
 def generate_symmetric_ring_topology(num_clients):
-        '''
-        neighbor_num : adjacent node count of every node in the graph
-        num_clients : total num of clients
-        '''
-        
-        n = num_clients
+    """Generate a doubly-stochastic adjacency matrix for a symmetric ring graph.
+
+    Uses NetworkX's Watts-Strogatz graph with k=2 (each node connected to its
+    two nearest neighbours) and p=0 (no random rewiring), which produces a pure
+    ring.  The resulting binary adjacency matrix is then row-normalised so each
+    row sums to 1 (equal weights for all neighbours, making it doubly stochastic
+    for a regular ring).
+
+    Args:
+        num_clients: Number of federated nodes (ring size).
+
+    Returns:
+        np.ndarray: [N × N] symmetric, doubly-stochastic mixing matrix.
+    """
+    n = num_clients
         # first generate a ring topology
         # ring by connecting only to 2 neighbors
         topology_ring = nx.to_numpy_array(nx.watts_strogatz_graph(n, 2, 0))
@@ -98,11 +144,25 @@ def generate_symmetric_ring_topology(num_clients):
 
 
 def generate_symmetric_topology(neighbor_num, num_clients):
-        '''
-        neighbor_num : adjacent node count of every node in the graph 
-                       (if neighbor_num == (num_clients - 1) then fc)
-        num_clients : total num of clients 
-        '''
+    """Generate a symmetric (but not necessarily doubly-stochastic) mixing matrix.
+
+    Construction:
+      1. Start from a pure ring (Watts-Strogatz, k=2, p=0).
+      2. Overlay additional links from a denser Watts-Strogatz graph
+         (k=``neighbor_num``).  Diagonal is set to 1 (self-loops).
+      3. Row-normalise uniformly so each row sums to 1.
+
+    When ``neighbor_num == num_clients - 1`` every pair of clients is connected
+    (fully-connected topology).
+
+    Args:
+        neighbor_num: Target degree for the extra Watts-Strogatz links.
+            Set to ``num_clients`` for a fully-connected graph.
+        num_clients: Number of federated nodes.
+
+    Returns:
+        np.ndarray: [N × N] row-normalised symmetric mixing matrix.
+    """
         
         
         n = num_clients
@@ -139,7 +199,28 @@ def generate_symmetric_topology(neighbor_num, num_clients):
 
 
 def topology_manager(args):
+    """Load or generate and cache the mixing matrix for the requested topology.
 
+    Supported topologies (``args.topo``):
+      - ``'fc'``     : Fully-connected — every client communicates with all others.
+      - ``'ring'``   : Ring — each client connected to its two nearest neighbours.
+      - ``'sparse'`` : Sparse Watts-Strogatz — ``args.sparse_neighbors`` per node.
+
+    The mixing matrix and its MST are pickled to
+    ``data/<topo>_adj_<num_clients>.pkl`` on first run and loaded from there
+    on subsequent runs (avoids re-generating the same graph topology).
+
+    Args:
+        args: Namespace with fields:
+            ``topo`` (str), ``num_clients`` (int),
+            ``sparse_neighbors`` (int, used only for 'sparse' topo).
+
+    Returns:
+        np.ndarray: [N × N] mixing matrix for the requested topology.
+
+    Side effects:
+        Writes ``data/<topo>_adj_<num_clients>.pkl`` on first call.
+    """
     if args.topo == 'fc':
         filename = 'fc_adj_'
     elif args.topo == 'ring':

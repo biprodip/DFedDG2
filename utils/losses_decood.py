@@ -1,6 +1,29 @@
 
 """
-Aapted from SupCon: https://github.com/HobbitLong/SupContrast/
+Loss functions for DFedDG2 decentralized federated learning.
+
+This module provides three core loss classes used by ClientDecoodVMF:
+
+  - ``CompLoss``: Compactness loss — pulls each sample's embedding toward its
+    class prototype, encouraging intra-class clustering.
+
+  - ``DisLoss``: Dispersion loss — pushes apart inter-class prototypes using
+    Exponential Moving Average (EMA) updates. Also estimates the vMF
+    concentration parameter (kappa) for each class prototype.
+
+  - ``SupConLoss``: Supervised contrastive loss (Khosla et al., 2020).
+    Supports both supervised (label-guided) and unsupervised (SimCLR) modes.
+
+Additional utilities:
+  - ``Proxy_Anchor``: Proxy-anchor metric learning loss (Kim et al., 2020).
+  - ``binarize``: Converts integer labels to one-hot format.
+  - ``l2_norm``: Row-wise L2 normalization.
+
+References:
+    SupCon: Khosla et al., "Supervised Contrastive Learning", NeurIPS 2020.
+            https://arxiv.org/abs/2004.11362
+    Proxy Anchor: Kim et al., "Proxy Anchor Loss for Deep Metric Learning", CVPR 2020.
+    vMF kappa estimation: Hornik & Grün, "movMF: An R Package ...", JSS 2014.
 """
 from __future__ import print_function
 
@@ -12,6 +35,19 @@ from collections import defaultdict
 
 
 def binarize(T, nb_classes):
+    """
+    Convert integer class labels to a one-hot binary matrix.
+
+    Args:
+        T (Tensor): 1-D integer label tensor of shape [N].
+        nb_classes (int): Total number of classes.
+
+    Returns:
+        Tensor: Float tensor of shape [N, nb_classes] with one-hot rows.
+
+    Note:
+        Relies on the global ``args.device`` for output placement.
+    """
     T = T.cpu().numpy()
     import sklearn.preprocessing
     T = sklearn.preprocessing.label_binarize(
@@ -21,9 +57,21 @@ def binarize(T, nb_classes):
     return T
 
 def l2_norm(input):
+    """
+    Apply row-wise L2 normalization to a 2-D tensor.
+
+    Each row is divided by its L2 norm. A small epsilon (1e-12) is added
+    to the squared norm before taking the square root to avoid division by zero.
+
+    Args:
+        input (Tensor): Float tensor of shape [N, D].
+
+    Returns:
+        Tensor: L2-normalized tensor of the same shape [N, D].
+    """
     input_size = input.size()
     buffer = torch.pow(input, 2)
-    normp = torch.sum(buffer, 1).add_(1e-12)
+    normp = torch.sum(buffer, 1).add_(1e-12)  # 1e-12: numerical stability guard
     norm = torch.sqrt(normp)
     _output = torch.div(input, norm.view(-1, 1).expand_as(input))
     output = _output.view(input_size)
@@ -31,9 +79,21 @@ def l2_norm(input):
 
 
 class Proxy_Anchor(torch.nn.Module):
+    """
+    Proxy Anchor loss for deep metric learning (Kim et al., CVPR 2020).
+
+    Each class is represented by a learnable proxy vector. The loss pulls
+    samples toward their positive proxy and pushes them away from negative
+    proxies using margin-based exponential terms.
+
+    Args:
+        nb_classes (int): Number of classes (one proxy per class).
+        sz_embed (int): Embedding dimensionality.
+        mrg (float): Margin applied to positive/negative cosine similarities.
+        alpha (float): Scaling factor controlling loss sharpness.
+    """
     def __init__(self, nb_classes, sz_embed, mrg = 0.1, alpha = 32):
         torch.nn.Module.__init__(self)
-        # Proxy Anchor Initialization
         self.proxies = torch.nn.Parameter(torch.randn(nb_classes, sz_embed).to(args.device))
         nn.init.kaiming_normal_(self.proxies, mode='fan_out')
 
@@ -41,27 +101,37 @@ class Proxy_Anchor(torch.nn.Module):
         self.sz_embed = sz_embed
         self.mrg = mrg
         self.alpha = alpha
-        
+
     def forward(self, X, T):
+        """
+        Compute the Proxy Anchor loss for a batch of embeddings.
+
+        Args:
+            X (Tensor): Embedding matrix of shape [N, D].
+            T (Tensor): Integer class labels of shape [N].
+
+        Returns:
+            Tensor: Scalar loss value.
+        """
         P = self.proxies
 
-        cos = F.linear(l2_norm(X), l2_norm(P))  # Calcluate cosine similarity
+        cos = F.linear(l2_norm(X), l2_norm(P))  # Cosine similarity: [N, nb_classes]
         P_one_hot = binarize(T = T, nb_classes = self.nb_classes)
         N_one_hot = 1 - P_one_hot
-    
+
         pos_exp = torch.exp(-self.alpha * (cos - self.mrg))
         neg_exp = torch.exp(self.alpha * (cos + self.mrg))
 
-        with_pos_proxies = torch.nonzero(P_one_hot.sum(dim = 0) != 0).squeeze(dim = 1)   # The set of positive proxies of data in the batch
-        num_valid_proxies = len(with_pos_proxies)   # The number of positive proxies
-        
-        P_sim_sum = torch.where(P_one_hot == 1, pos_exp, torch.zeros_like(pos_exp)).sum(dim=0) 
+        with_pos_proxies = torch.nonzero(P_one_hot.sum(dim = 0) != 0).squeeze(dim = 1)  # Proxies with at least one positive sample in the batch
+        num_valid_proxies = len(with_pos_proxies)
+
+        P_sim_sum = torch.where(P_one_hot == 1, pos_exp, torch.zeros_like(pos_exp)).sum(dim=0)
         N_sim_sum = torch.where(N_one_hot == 1, neg_exp, torch.zeros_like(neg_exp)).sum(dim=0)
-        
+
         pos_term = torch.log(1 + P_sim_sum).sum() / num_valid_proxies
         neg_term = torch.log(1 + N_sim_sum).sum() / self.nb_classes
-        loss = pos_term + neg_term     
-        
+        loss = pos_term + neg_term
+
         return loss
 
 
@@ -157,9 +227,25 @@ class SupConLoss(nn.Module):
 
 
 class CompLoss(nn.Module):
-    '''
-    Compactness Loss with class-conditional prototypes
-    '''
+    """
+    Compactness Loss with class-conditional prototypes.
+
+    Pulls each sample's embedding toward the prototype of its ground-truth
+    class using a softmax cross-entropy over prototype similarities. This
+    encourages intra-class compactness in the embedding space.
+
+    The loss is computed as:
+        L_comp = -(τ / τ_base) * mean_n [ log( exp(f_n · μ_{y_n} / τ) /
+                                                 Σ_c exp(f_n · μ_c / τ) ) ]
+
+    where f_n is the feature of sample n, μ_c is the prototype of class c,
+    and τ is the temperature.
+
+    Args:
+        args: Global config. Requires ``args.num_classes`` and ``args.device``.
+        temperature (float): Softmax temperature τ for logit scaling.
+        base_temperature (float): Normalization temperature; typically equals ``temperature``.
+    """
     def __init__(self, args, temperature=0.07, base_temperature=0.07):
         super(CompLoss, self).__init__()
         self.args = args
@@ -167,11 +253,21 @@ class CompLoss(nn.Module):
         self.base_temperature = base_temperature
 
     def forward(self, features, prototypes, labels):
-        '''receiving normalized losses fro  disloss'''
-        #prototypes = F.normalize(prototypes, dim=1) 
-        
-        proxy_labels = torch.arange(0, self.args.num_classes).to(self.args.device) #[0,...9]
-        labels = labels.contiguous().view(-1, 1) #[2,5,3] to [[2],[5],[3]] 
+        """
+        Compute the compactness loss for a batch of features.
+
+        Expects prototypes to already be L2-normalized (as produced by DisLoss).
+
+        Args:
+            features (Tensor): Batch embeddings of shape [N, D].
+            prototypes (Tensor): Class prototype matrix of shape [num_classes, D].
+            labels (Tensor): Integer ground-truth labels of shape [N].
+
+        Returns:
+            Tensor: Scalar compactness loss.
+        """
+        proxy_labels = torch.arange(0, self.args.num_classes).to(self.args.device)  # [0, ..., num_classes-1]
+        labels = labels.contiguous().view(-1, 1)  # reshape [N] → [N, 1] for broadcasting
 
         # print(proxy_labels.shape, (proxy_labels.T).shape, proxy_labels.permute(*torch.arange(proxy_labels.ndim - 1, -1, -1)).shape)
         mask = torch.eq(labels, proxy_labels.permute(*torch.arange(proxy_labels.ndim - 1, -1, -1))).float().to(self.args.device) #bz x cls    # [[0010000000],[0000010000],[0001000000]]
@@ -199,13 +295,38 @@ class CompLoss(nn.Module):
 
 
 class DisLoss(nn.Module):
-    '''
-    Dispersion Loss with EMA prototypes
-    '''
+    """
+    Dispersion Loss with EMA-updated class prototypes.
+
+    Pushes apart the prototypes of different classes, promoting inter-class
+    dispersion in the embedding space. Prototypes are maintained as Exponential
+    Moving Averages (EMA) of per-class feature representations and updated
+    in-place during each forward pass.
+
+    Alongside prototypes, the vMF concentration parameter kappa is estimated
+    using the Hornik & Grün (2014) approximation:
+
+        R̂ = ||μ_unnorm||
+        κ̂ = R̂ * (d - R̂²) / (1 - R̂²)
+
+    where d is the feature dimension. A high κ̂ indicates a tight, reliable
+    prototype; κ̂ = 0 indicates no data was seen for that class.
+
+    The dispersion loss is:
+        L_dis = (τ / τ_base) * mean_c [ log( Σ_{c' ≠ c} exp(μ_c · μ_c' / τ) /
+                                              (num_cls - 1) ) ]
+
+    Args:
+        args: Global config. Requires ``num_classes``, ``feat_dim``, ``proto_m``, ``device``.
+        model: Client model; uses ``model.base`` for feature extraction during initialization.
+        loader: Training DataLoader used to compute initial prototype estimates.
+        temperature (float): Softmax temperature τ.
+        base_temperature (float): Normalization temperature; typically equals ``temperature``.
+    """
     def __init__(self, args, model, loader, temperature= 0.1, base_temperature=0.1):
         super(DisLoss, self).__init__()
         self.args = args
-        self.epsilon = 1e-08                                        ##################***********
+        self.epsilon = 1e-08  # Small offset added to zero prototypes of unseen classes to avoid degenerate norms
         self.temperature = temperature
         self.base_temperature = base_temperature
         self.register_buffer("prototypes", torch.zeros(self.args.num_classes,self.args.feat_dim))
@@ -217,54 +338,62 @@ class DisLoss(nn.Module):
 
 
 
-    def forward(self, features, labels, prototypes):    
+    def forward(self, features, labels, prototypes):
+        """
+        Update EMA prototypes and compute the dispersion loss.
 
-        #prototypes = self.prototypes
-        
+        For each sample in the batch, the prototype of its class is updated via:
+            μ_c ← normalize( proto_m * μ_c + (1 - proto_m) * f )
+        where proto_m is the EMA momentum from ``args.proto_m``.
+
+        The vMF concentration κ̂ is recomputed after each EMA update using
+        the pre-normalization norm R̂ of the updated prototype.
+
+        The dispersion loss then encourages all class prototypes to be
+        mutually dissimilar by maximizing the average inter-class similarity
+        (acting as a repulsive objective).
+
+        Args:
+            features (Tensor): Batch embeddings of shape [N, D].
+            labels (Tensor): Integer ground-truth labels of shape [N].
+            prototypes (Tensor): Current prototype matrix of shape [num_classes, D].
+                                 Updated in-place and stored in ``self.prototypes``.
+
+        Returns:
+            Tensor: Scalar dispersion loss.
+        """
         num_cls = self.args.num_classes
         for j in range(len(features)):
-           
-            
+            # EMA update: blend current prototype with new feature observation
             tmp_proto = prototypes[labels[j].item()] * self.args.proto_m + features[j] * (1 - self.args.proto_m)
             self.R_hat[labels[j].item()] = torch.norm(tmp_proto).detach()
 
-            # Compute full kappa formula
+            # Estimate vMF concentration κ̂ from pre-normalization norm R̂
             R_hat = self.R_hat[labels[j].item()]
             R_hat_sqr = R_hat * R_hat
             self.kappa_hat[labels[j].item()] = (
                 R_hat * (self.args.feat_dim - R_hat_sqr) / (1 - R_hat_sqr)
-                if R_hat < 0.999 else 1e6  # Handle edge case
+                if R_hat < 0.999 else 1e6  # R̂ ≈ 1 makes denominator (1 - R̂²) → 0; cap at large finite value
             )
 
             prototypes[labels[j].item()] = F.normalize(tmp_proto, dim=0)
 
-            # #******** 
-            # tmp_proto = prototypes[labels[j].item()] * self.args.proto_m + features[j]*(1-self.args.proto_m)
-            # self.R_hat[labels[j].item()] =  torch.norm(tmp_proto).detach()
-            # # R_hat_sqr = self.R_hat[labels[j].item()] * self.R_hat[labels[j].item()]
-            # # kappa_hat[labels[j].item()] = (self.R_hat[labels[j].item()] * (self.feat_dim - R_hat_sqr)) / (1 - R_hat_sqr) 
-            # self.kappa_hat[labels[j].item()] = self.R_hat[labels[j].item()] 
-
-            # # print(label, R_hat[labels[j].item()], kappa_hat[labels[j].item()])
-
-            # prototypes[labels[j].item()] = F.normalize(tmp_proto,dim=0)
-            # #********
-
-            # # prototypes[labels[j].item()] = F.normalize(prototypes[labels[j].item()] *self.args.proto_m + features[j]*(1-self.args.proto_m), dim=0)  #happens for local labels
-
+            # NOTE: Earlier versions used kappa_hat = R_hat directly (simpler proxy).
+            # The current formula is the full Hornik & Grün (2014) approximation.
 
         self.prototypes = prototypes.detach()
 
-        labels = torch.arange(0, num_cls).to(self.args.device)     #all labels
+        labels = torch.arange(0, num_cls).to(self.args.device)  # Use all class indices for prototype-level loss
         labels = labels.contiguous().view(-1, 1)
 
-        mask = (1- torch.eq(labels, labels.T).float()).to(self.args.device)  ###############mT
-
+        # Off-diagonal mask: 1 for all inter-class pairs, 0 on diagonal
+        mask = (1 - torch.eq(labels, labels.T).float()).to(self.args.device)
 
         logits = torch.div(
             torch.matmul(prototypes, prototypes.T),
             self.temperature)
 
+        # Zero out self-similarity (diagonal) to exclude it from the mean
         logits_mask = torch.scatter(
             torch.ones_like(mask),
             1,
@@ -273,26 +402,37 @@ class DisLoss(nn.Module):
         )
         mask = mask * logits_mask
         mean_prob_neg = torch.log((mask * torch.exp(logits)).sum(1) / mask.sum(1))
-        mean_prob_neg = mean_prob_neg[~torch.isnan(mean_prob_neg)]
+        mean_prob_neg = mean_prob_neg[~torch.isnan(mean_prob_neg)]  # Drop rows for classes with no neighbors in mask
         loss = self.temperature / self.base_temperature * mean_prob_neg.mean()
         return loss
 
 
 
     def init_class_prototypes(self):
-        """Initialize class prototypes"""
+        """
+        Initialize class prototypes by averaging features from the training loader.
+
+        For each class, computes the mean feature vector from all training samples
+        using the frozen backbone (``model.base``), then L2-normalizes the result.
+        Also initializes R̂ and κ̂ per class.
+
+        Classes absent from the local training data (OOD classes) are initialized
+        to a zero vector offset by ``self.epsilon`` to avoid degenerate norms,
+        with κ̂ = 0 to signal unreliable concentration.
+
+        Side effects:
+            Sets ``self.prototypes``, ``self.R_hat``, and ``self.kappa_hat``.
+        """
         self.model.eval()
         start = time.time()
         prototype_counts = [0]*self.args.num_classes
         with torch.no_grad():
-            prototypes = torch.zeros(self.args.num_classes,self.args.feat_dim).to(self.args.device)       ####unknown protos will be zeros
-            # for i, (input, target) in enumerate(self.loader):
+            # Accumulate feature sums per class; classes not seen locally remain zero
+            prototypes = torch.zeros(self.args.num_classes, self.args.feat_dim).to(self.args.device)
             for (input, target, _) in self.loader:
-            
                 input = input[0]
                 input, target = input.to(self.args.device), target.to(self.args.device)
-                #print(f'{input.shape}')
-                features = self.model.base(input)  #self.model(input)
+                features = self.model.base(input)
                 for j, feature in enumerate(features):
                     prototypes[target[j].item()] += feature
                     prototype_counts[target[j].item()] += 1
@@ -303,44 +443,26 @@ class DisLoss(nn.Module):
                     prototypes[cls] /= prototype_counts[cls]
                     self.R_hat[cls] = torch.norm(prototypes[cls]).detach()
 
-                    # Compute full kappa formula
+                    # Estimate vMF concentration κ̂ from pre-normalization norm R̂
                     R_hat = self.R_hat[cls]
                     R_hat_sqr = R_hat * R_hat
                     self.kappa_hat[cls] = (
                         R_hat * (self.args.feat_dim - R_hat_sqr) / (1 - R_hat_sqr)
-                        if R_hat < 0.999 else 1e6  # Handle edge case
+                        if R_hat < 0.999 else 1e6  # R̂ ≈ 1 → denominator → 0; cap at large finite value
                     )
                 else:
+                    # OOD class: no local samples; offset from zero to give a valid norm
                     prototypes[cls] += self.epsilon
                     self.R_hat[cls] = torch.norm(prototypes[cls]).detach()
-                    self.kappa_hat[cls] = 0  # No reliable concentration
+                    self.kappa_hat[cls] = 0  # κ̂ = 0 signals no reliable concentration estimate
 
             
             
-            # for cls in range(self.args.num_classes):
-            #     if prototype_counts[cls] > 0:                  ###################***********
-            #         prototypes[cls] /=  prototype_counts[cls]
-                    
-            #         #kappa computation
-            #         self.R_hat[cls] =  torch.norm(prototypes[cls]).detach()
-            #         # R_hat_sqr = self.R_hat[cls]*self.R_hat[cls]
-            #         # self.kappa_hat[cls] = (self.R_hat[cls] * (self.feat_dim - R_hat_sqr)) / (1 - R_hat_sqr) 
-            #         self.kappa_hat[cls] = self.R_hat[cls]
-            #     else:    
-            #         prototypes[cls] += self.epsilon                 ###################***********
-                    
-            #         #kappa computation
-            #         self.R_hat[cls] =  torch.norm(prototypes[cls]).detach()
-            #         # R_hat_sqr = self.R_hat[cls]*self.R_hat[cls]
-            #         # self.kappa_hat[cls] = (self.R_hat[cls] * (self.feat_dim - R_hat_sqr)) / (1 - R_hat_sqr) 
-            #         self.kappa_hat[cls] = self.R_hat[cls]
+            # NOTE: An earlier version used kappa_hat[cls] = R_hat directly as a simpler
+            # proxy for concentration. The current formula is the full Hornik & Grün (2014)
+            # approximation. The older variant is no longer active.
 
+            duration = time.time() - start  # Prototype initialization wall-clock time (log if needed)
 
-            # measure elapsed time
-            duration = time.time() - start
-            # print(f'Time to initialize prototypes: {duration:.3f}')
-            
-            #if self.args.normalize:
             prototypes = F.normalize(prototypes, dim=1)
-
             self.prototypes = prototypes

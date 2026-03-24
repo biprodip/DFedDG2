@@ -1,4 +1,18 @@
-"""Configuration file for experiments"""
+"""constants.py — Static lookup tables for DFedDG2 experiment configuration.
+
+These dictionaries map algorithm or dataset identifiers (strings) to the
+internal type strings used by aggregators, data-loaders, and client factories.
+
+Lookup tables
+-------------
+LOADER_TYPE        : dataset name → data-loader category string.
+EXTENSIONS         : data-loader category → file extension for cached splits.
+AGGREGATOR_TYPE    : algorithm name → aggregation strategy identifier.
+CLIENT_TYPE        : algorithm name → client implementation variant.
+SHAKESPEARE_CONFIG : Hyper-parameters for the Shakespeare character-LM task.
+CHARACTERS_WEIGHTS : Per-character inverse-frequency weights for the
+                     Shakespeare dataset (used to re-balance loss).
+"""
 import string
 
 

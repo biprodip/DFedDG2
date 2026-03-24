@@ -1,3 +1,15 @@
+"""decentralized.py — Graph construction and FMMC mixing-matrix utilities.
+
+Provides helpers for generating communication graphs and computing the optimal
+doubly-stochastic mixing matrix used in gossip-based decentralised FL.
+
+Key functions
+-------------
+get_communication_graph : Sample an Erdős–Rényi random graph (via NetworkX).
+compute_mixing_matrix   : Solve the FMMC semi-definite programme (CVXPY).
+get_mixing_matrix       : Load a cached mixing matrix or create and cache one.
+"""
+
 import cvxpy as cp
 import networkx as nx
 import numpy as np
@@ -9,6 +21,17 @@ import pickle
 
 
 def get_communication_graph(n, p, seed):
+    """Sample an Erdős–Rényi (binomial) random graph G(n, p).
+
+    Args:
+        n: Number of nodes (clients).
+        p: Edge probability — each pair of nodes is connected independently
+           with probability *p*.  Typical value: 0.5.
+        seed: Integer random seed for reproducibility.
+
+    Returns:
+        networkx.Graph: Undirected random graph with ``n`` nodes.
+    """
     return nx.generators.random_graphs.binomial_graph(n=n, p=p, seed=seed)
 
 
@@ -60,12 +83,35 @@ def compute_mixing_matrix(adjacency_matrix):
 
 
 def get_mixing_matrix(args, n, p, seed):
-    
-    if n==4:
-        p = 0.6 #for FNLI setup only; Default: p is proportional to sampling rate in server based FL
+    """Return the FMMC mixing matrix for a sparse Erdős–Rényi graph, with caching.
+
+    On first call the graph is sampled, the FMMC SDP is solved, and the result
+    (plus the MST) is pickled to ``data/sparse_adj_<num_clients>.pkl``.
+    Subsequent calls load directly from this file, avoiding the expensive CVXPY
+    solve.
+
+    Seed overrides:
+        - n == 4: p forced to 0.6 and seed to 7 (FNLI experimental setup).
+        - n > 4:  seed forced to 3 (converges reliably for the CVXPY SDP).
+
+    Args:
+        args: Namespace with at least ``args.num_clients`` (used in the cache
+            file name).
+        n: Number of clients / graph nodes.
+        p: Nominal edge probability (may be overridden for n==4).
+        seed: Nominal random seed (overridden internally; see above).
+
+    Returns:
+        np.ndarray: [N × N] optimal mixing matrix.
+
+    Side effects:
+        Writes ``data/sparse_adj_<num_clients>.pkl`` on first call.
+    """
+    if n == 4:
+        p = 0.6  # for FNLI setup only; Default: p is proportional to sampling rate in server based FL
         seed = 7
     else:
-        seed = 3 #converges for cvx problem with this value, for more than 4 clients
+        seed = 3  # converges for the CVXPY SDP with this value for more than 4 clients
     
     filename = 'sparse_adj_'
 

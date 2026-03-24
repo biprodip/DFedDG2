@@ -1,18 +1,48 @@
+"""comm_gossip.py — Model-weight gossip communication for decentralised FL.
+
+This module implements the standard (non-vMF) gossip training loop.  Unlike
+comm_vmf_gossip, neighbour weights are determined by the static or dynamic
+adjacency matrix rather than vMF likelihood scores, and *model parameters* are
+exchanged (not just prototypes).
+
+Key functions
+-------------
+make_doubly_stochastic : Sinkhorn-style balancing of a mixing matrix (tensor).
+comm_gossip            : Main round loop — local update + weighted model average.
+
+Internal helper
+---------------
+update_clients (nested) : thin wrapper used to print client ID before update().
+"""
+
 from utils.utils_proto import *
 from collections import defaultdict
 import json
 import time
 import random
 import numpy as np
-# from proco_utils import neighbor_gossip_weights
 import torch.nn.functional as F
-# from proco.proco import miller_recurrence      # already in ProCo repo
-# from scipy.special import ive
 from comm_utils.decentralized import *
 
 
 def make_doubly_stochastic(W, iters=5, eps=1e-12):
-    # W: [N,N] row-stochastic (rows already sum to 1)
+    """Iteratively balance a mixing matrix so both rows and columns sum to 1.
+
+    Applies alternating column-normalisation then row-normalisation (Sinkhorn
+    iterations).  Starting from a row-stochastic matrix (rows already sum to 1),
+    ``iters`` passes are usually sufficient for small graphs (N ≤ 20).
+
+    Args:
+        W: [N, N] torch.Tensor that is at least approximately row-stochastic.
+            Modified **in-place**.
+        iters: Number of alternating normalisation passes (default: 5).
+        eps: Small constant clamped to the divisor to prevent division by zero
+            when a column or row sum is effectively zero (default: 1e-12).
+
+    Returns:
+        torch.Tensor: The balanced (doubly stochastic) matrix W (same object,
+            modified in-place).
+    """
     for _ in range(iters):
         col_sum = W.sum(0, keepdim=True).clamp_min(eps)
         W /= col_sum                       # make columns sum to 1
@@ -23,12 +53,43 @@ def make_doubly_stochastic(W, iters=5, eps=1e-12):
 
 
 def comm_gossip(args, adj, clients, debug=False, test_loader=None):
-    '''
-    For a client i, Aggregates(FedAvg) all clients j if j is adjacent to i and (i!=j)
-    based on the adjacency matrics adj. 
+    """Main training loop for the standard (model-weight) gossip algorithm.
 
-    Not random gossip (where adjacents are randomly selected).
-    '''
+    Each round proceeds in three phases:
+
+    1. **Dynamic topology** (optional) — if ``args.dynamic_topo == 1``, a new
+       Erdős–Rényi random graph is sampled (p=0.5) and its adjacency matrix is
+       doubly-stochastic balanced via ``make_doubly_stochastic``.
+
+    2. **Local update** — every client runs one local training epoch
+       (``client.update()``).
+
+    3. **Weighted model average** — for each client *i*, its new model
+       parameters are computed as:
+           W_new[i] = adj[i][i] * W[i]  +  Σ_{j∈neighbours} adj[i][j] * W[j]
+       where ``adj`` is the (possibly updated) mixing matrix.  The result is
+       loaded back via ``client.avg_model``.
+
+    Timing is recorded per-round for both local training and gossip phases.
+
+    Args:
+        args: Experiment configuration namespace.  Relevant fields:
+            ``num_rounds``, ``global_seed``, ``num_clients``, ``dynamic_topo``.
+        adj: [N × N] float tensor mixing matrix.  ``adj[i][j]`` is the weight
+            client *i* gives to client *j*'s model.  Updated in-place when
+            ``dynamic_topo == 1``.
+        clients: List of client objects (one per federated node).
+        debug: Unused; reserved for future verbose logging.
+        test_loader: Unused in this function; each client evaluates on its own
+            local test loader via ``evaluate_clients``.
+
+    Returns:
+        list[float]: Per-round average local test accuracy across all clients.
+
+    Side effects:
+        Loads new model state dicts into each client via ``client.avg_model``
+        each round.  Prints per-round timing statistics.
+    """
         
     print('Gossip training.')
     # torch.manual_seed(args.global_seed)

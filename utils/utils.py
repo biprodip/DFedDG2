@@ -1,8 +1,23 @@
+"""utils.py — General utility functions for DFedDG2 federated learning experiments.
+
+Contains helpers for parameter counting, gradient similarity, per-round client
+evaluation, and neighbour-selection strategies used by decentralised algorithms.
+
+Neighbour selection strategies (``clients_to_communicate_with``)
+----------------------------------------------------------------
+'random'     : Uniformly sample ``args.num_sel_clients`` from all adjacents.
+'ideal'      : Randomly pick same-cluster clients only (oracle baseline).
+'loss_based' : Select clients whose inverse loss exceeds the peer average.
+'grad_based' : Select by cosine similarity of local gradients (threshold-gated).
+'hybrid'     : Loss-based selection + prototype-diversity weighting.
+'mixed_loss' : Combined loss + diversity metric for selection and weighting.
+"""
+
 import copy
 import torch
 import numpy as np
 import torch.nn as nn
-from numpy import random 
+from numpy import random
 from multiprocessing import pool
 from collections import OrderedDict
 from sklearn.metrics.pairwise import cosine_similarity
@@ -10,8 +25,23 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 def count_params(client, comm_algo):
-        tot_param = 0
-        if comm_algo=='comm_dis_pfl':
+    """Print the parameter count for a client, dispatching by communication algorithm.
+
+    Different algorithms expose different ``count_params()`` return signatures on
+    the client object:
+      - ``'comm_dis_pfl'``    → returns (total, non_zero, mask) — pruned models.
+      - ``'comm_gossip'`` / ``'comm_penz'`` → returns a single integer count.
+      - ``'comm_decood_w'``   → returns (proto_params, model_params).
+
+    Args:
+        client: A client object with a ``count_params()`` method.
+        comm_algo: String identifier of the communication algorithm in use.
+
+    Returns:
+        None.  Parameter counts are printed to stdout only.
+    """
+    tot_param = 0
+    if comm_algo == 'comm_dis_pfl':
             total_params_to_send, non_zero_params, mask_params = client.count_params()  #from model and masks
             print(f'Parameters of client: total: {total_params_to_send}, non_zero_params: {non_zero_params} mask: {mask_params}')
 
@@ -30,9 +60,20 @@ def count_params(client, comm_algo):
 
 
 def get_matrix_cosine_similarity_from_grads(local_model_grads):
-    """
-    return the similarity matrix where the distance chosen to
-    compare two clients is set with `distance_type`
+    """Compute cosine similarity between the gradients of two client models.
+
+    Flattens all parameter gradients into a single 1-D vector per client, then
+    returns the cosine similarity between the first two entries of
+    ``local_model_grads``.  Only the first two clients are compared regardless
+    of list length.
+
+    Args:
+        local_model_grads: List of gradient lists, where each inner list
+            contains per-parameter gradient tensors (PyTorch).  At least two
+            entries are required.
+
+    Returns:
+        np.ndarray: 1×1 cosine similarity matrix (scalar wrapped in array).
     """
     n_clients = len(local_model_grads)
     
@@ -75,12 +116,29 @@ def get_matrix_cosine_similarity_from_grads(local_model_grads):
 
 
 def evaluate_clients(clients, test_loader=None):
-   round_avg_lacc = 0
-   
-   K = len(clients)
+    """Evaluate all clients on their local test sets and return mean accuracy.
 
-   # Load averaged weights in client(global models)
-   for i in range(K):
+    Calls ``client.performance_test()`` for each client, appends the result to
+    ``client.l_test_acc_hist``, and accumulates the mean across all K clients.
+
+    Note: ``test_loader`` is accepted for interface compatibility but is not
+    used; each client evaluates on its own internal test loader.
+
+    Args:
+        clients: List of client objects with ``performance_test()`` and
+            ``l_test_acc_hist`` attributes.
+        test_loader: Unused.  Present for API compatibility with the global-set
+            variant (``evaluate_clients_tmp``).
+
+    Returns:
+        float: Mean local test accuracy across all K clients for this round.
+    """
+    round_avg_lacc = 0
+
+    K = len(clients)
+
+    # Evaluate each client on its local test split
+    for i in range(K):
        
        #local test performance
        test_acc, test_auc, test_unc = clients[i].performance_test()
@@ -151,13 +209,34 @@ def evaluate_clients_tmp(clients, test_loader):
 
 ##neighbor selection
 def accuracy(outputs, labels):
+    """Fraction of correct top-1 predictions (normalised accuracy).
+
+    Args:
+        outputs: Class logits, shape [N, C].
+        labels: Ground-truth class indices, shape [N].
+
+    Returns:
+        torch.Tensor: Scalar accuracy in [0, 1].
+    """
     _, preds = torch.max(outputs, dim=1)
     return torch.tensor(torch.sum(preds == labels).item() / len(preds))
 
 
 def eval_protos(protos1, protos2):
+    """Compute MSE dissimilarity between two prototype tensors.
+
+    Used in diversity-based neighbour selection to quantify how different two
+    clients' per-class feature means are.  Higher MSE → more complementary
+    prototypes → potentially better aggregation partner.
+
+    Args:
+        protos1: Prototype tensor from the local client.
+        protos2: Prototype tensor from a candidate neighbour.
+
+    Returns:
+        torch.Tensor: Scalar MSE loss between the two prototype tensors.
+    """
     loss_mse = nn.MSELoss()
-    #print(f'Eval protos diversity loss: {nn.loss_mse(protos1, protos2)}')
     return loss_mse(protos1, protos2)
 
 # def cosine_similarity(v1, v2):
@@ -174,15 +253,32 @@ def eval_protos(protos1, protos2):
 
 
 def clients_to_communicate_with(args, client, clients):
-    '''
-    param: args: arguments
-           client: current client (c)
-           clients : adjacent clients of c     
+    """Select a subset of adjacent clients to communicate with this round.
 
-    returns: neighbors: selected adjacent clients
-             weights    
-              
-    '''
+    Implements multiple neighbour-selection policies controlled by
+    ``args.neighbour_selection``:
+
+    - ``'random'``     : Uniformly sample ``args.num_sel_clients`` from all
+                         adjacents.
+    - ``'ideal'``      : Oracle — pick same-cluster clients only.
+    - ``'loss_based'`` : Keep clients whose inverse-loss exceeds peer mean.
+    - ``'grad_based'`` : Keep clients with gradient cosine similarity above
+                         ``args.grad_thres``; sort descending.
+    - ``'hybrid'``     : Loss-based shortlist then diversity-based weighting.
+    - ``'mixed_loss'`` : Combined loss + diversity metric for joint selection.
+
+    Args:
+        args: Namespace with fields: ``neighbour_selection``, ``num_sel_clients``,
+            ``n_samplings``, ``neighbour_exploration``, ``grad_thres``, etc.
+        client: The querying client whose local data / gradients are used to
+            score candidates.
+        clients: List of adjacent client objects to consider.
+
+    Returns:
+        tuple[list, np.ndarray | None]:
+            - neighbours: Selected client objects for this round.
+            - weights: Optional aggregation weights (None for most strategies).
+    """
     weights = None
     
     adj = [c.id for c in clients]

@@ -1,3 +1,36 @@
+"""native_data_utils.py — Dataset loading and client data partitioning utilities.
+
+Provides functions for distributing training/test data across federated clients
+under various IID and non-IID settings, as well as dataset cluster helpers used
+for rotation- and noise-based heterogeneity experiments.
+
+Data distribution functions
+---------------------------
+dist_iid                             : Uniform IID split.
+dist_non_iid_clust                   : Custom non-IID split (first half round-
+                                       robin, second half only to 2 clients).
+dist_pathological                    : Pathological non-IID via label sorting
+                                       and shard assignment (McMahan et al.).
+dist_pathological_clust              : Pathological split for both train & test.
+dist_dirichlet                       : Dirichlet (Dir(α)) non-IID split
+                                       (Hsu et al., 2019).
+dist_dirichlet_clust                 : Dirichlet split for both train & test,
+                                       using the same proportions for both.
+
+Dataset & cluster helpers
+-------------------------
+AddGaussianNoise        : torchvision transform that adds spatially structured
+                          or uniform Gaussian noise.
+DatasetSplit            : Thin PyTorch Dataset wrapper for index-based subsets.
+get_targets             : Extract labels from any iterable Dataset.
+cluster_train_test_set_rotation_noise : Trivial pass-through cluster (n=1).
+cluster_train_test_set_label_fixed_train_size : Label-based cluster with a
+                          fixed total training budget.
+cluster_train_test_set_label : Label-based clustering into n groups.
+load_dataset            : Full dataset loading entry point (MNIST, FashionMNIST,
+                          CIFAR-10/100) with rotation or noise transforms.
+"""
+
 import os
 import torch
 import numpy as np
@@ -6,7 +39,8 @@ from math import sqrt
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
 
-def dist_iid(dataset_train, dataset_test, num_clients, isCFL = False):
+
+def dist_iid(dataset_train, dataset_test, num_clients, isCFL=False):
     """
     sample I.I.D. client data from MNIST dataset
     :param dataset: train dataset
@@ -184,7 +218,30 @@ def dist_pathological_clust(train_dataset, test_dataset, num_clients, shard_size
 
 
 def dist_dirichlet(dataset, num_clients, alpha, num_classes, global_seed, isCFL=False):
-    # Non-IID split proposed in Hsu et al., 2019 (i.e., using Dirichlet distribution to simulate non-IID split)
+    """Non-IID split using a Dirichlet distribution (Hsu et al., 2019).
+
+    For each class *c*, samples a proportion vector p ~ Dir(α·1_K) and assigns
+    floor(p_k · |class c|) samples to client *k*.  Repeats until every client
+    has at least ``min_require_size = 10`` samples (guards against pathological
+    draws with very small α).
+
+    The final per-client index lists are shuffled before being stored.
+
+    Args:
+        dataset: Training dataset with a ``.targets`` attribute (or compatible
+            with ``get_targets`` when ``isCFL=True``).
+        num_clients: Number of federated clients K.
+        alpha: Dirichlet concentration parameter.  Smaller α → more non-IID.
+        num_classes: Total number of classes C.
+        global_seed: NumPy random seed set at the start of the split.
+        isCFL: If True, labels are extracted via ``get_targets`` instead of
+            ``dataset.targets`` (for custom Dataset subclasses).
+
+    Returns:
+        dict[int, list[int]]: Mapping from client index to list of sample
+            indices assigned to that client.
+    """
+    # Non-IID split proposed in Hsu et al., 2019
     np.random.seed(global_seed)
     split_map = dict()
 
@@ -323,6 +380,24 @@ def dist_dirichlet_clust(train_dataset, test_dataset, num_clients, alpha, num_cl
 
 
 class AddGaussianNoise(object):
+    """Torchvision-compatible transform that adds structured Gaussian noise.
+
+    When ``net_id`` is None, adds uniform noise to the entire tensor.
+    When ``net_id`` is set, the image is divided into a ``num × num`` grid of
+    patches and noise is added only to the patch at position
+    ``(row, col) = (net_id // patch_size, net_id % patch_size)``.  This
+    spatially partitions the noise across clients, introducing structured
+    feature-level heterogeneity.
+
+    Args (constructor):
+        mean: Noise mean (default: 0).
+        std: Noise standard deviation (default: 1).
+        net_id: Client / network ID used to select a spatial patch; None for
+            global noise.
+        total: Total number of clients — used to compute grid size as
+            ceil(sqrt(total)).
+    """
+
     def __init__(self, mean=0., std=1., net_id=None, total=0):
         self.std = std
         self.mean = mean
@@ -353,8 +428,16 @@ class AddGaussianNoise(object):
 
 
 class DatasetSplit(Dataset):
-    """An abstract Dataset class wrapped around Pytorch Dataset class.
+    """Index-based subset wrapper around a PyTorch Dataset.
+
+    Presents a view of ``dataset`` containing only the samples at ``idxs``,
+    enabling per-client data partitioning without copying data.
+
+    Args (constructor):
+        dataset: The underlying full PyTorch Dataset.
+        idxs: Iterable of integer indices into ``dataset``.
     """
+
     def __init__(self, dataset, idxs):
         self.dataset = dataset
         self.idxs = [int(i) for i in idxs]
@@ -369,18 +452,38 @@ class DatasetSplit(Dataset):
         
 
 def get_targets(data):
+    """Extract all labels from a Dataset by iterating over every sample.
+
+    Used as a fallback when ``data.targets`` is not available (e.g., for
+    ``DatasetSplit`` or other custom Dataset wrappers).
+
+    Args:
+        data: Any PyTorch Dataset whose ``__getitem__`` returns ``(input, label)``.
+
+    Returns:
+        list: Sequence of integer class labels, one per sample.
+    """
     return [data.__getitem__(i)[1] for i in range(data.__len__())]
 
 
 def cluster_train_test_set_rotation_noise(dataset_train, dataset_test, n):
-    '''
-    Input : 
-    train dataset,
-    test dataset, 
-    n: number of clusters
-    
-    return : just format identically to label clustering
-    '''
+    """Wrap the full dataset as a single cluster (trivial pass-through).
+
+    Used when the domain shift is already encoded in the transforms (rotation
+    or noise) applied before loading, so no label-based clustering is needed.
+    Returns the entire train and test datasets as ``DatasetSplit`` objects
+    covering all indices, formatted identically to the label-clustering variant
+    for API compatibility.
+
+    Args:
+        dataset_train: Full training dataset.
+        dataset_test: Full test dataset.
+        n: Number of clusters (unused; always returns a single cluster).
+
+    Returns:
+        tuple[DatasetSplit, DatasetSplit]: Train and test splits covering all
+            samples (cluster 0 = everything).
+    """
     #train_set_clusters = {} #clusters
     #test_set_clusters = {}  
 
@@ -523,9 +626,29 @@ def cluster_train_test_set_label(dataset_train, dataset_test, n):
 
 
 def load_dataset(args):
-    """ Returns train and test datasets 
-    #a user group : which is a dict where the keys are the user index and the values are the 
-    #corresponding data index in dataset for each of those users.
+    """Load and return train and test datasets for the configured experiment.
+
+    Handles three clustering modes controlled by ``args.clustering``:
+
+    - ``'rotation'`` : Returns a dict of N rotated copies of the dataset
+      (0°, 90°, 180°, 270°), one per cluster — used to simulate domain shift
+      via image rotation.
+    - ``'noise'``    : Returns a dict of N spatially-structured noisy copies via
+      ``AddGaussianNoise`` — heterogeneity from pixel-level noise.
+    - Any other value (including ``'label'`` clustering): Returns a single
+      train + test dataset pair with the standard normalisation transform.
+      Label-based clustering is applied externally after this call.
+
+    Supported datasets (``args.dataset``): ``'mnist'``, ``'fmnist'``,
+    ``'cifar10'``, ``'cifar100'``.
+
+    Args:
+        args: Namespace with fields: ``dataset``, ``clustering``,
+            ``num_clusters``, ``noise_level``.
+
+    Returns:
+        For rotation/noise modes: ``(dict[int, Dataset], dict[int, Dataset])``.
+        For standard mode:        ``(Dataset, Dataset)`` — train, test.
     """
      #assert args.dataset in ['MNIST', 'CIFAR10'], '[ERROR] `pathological non-IID setting` is supported only for `MNIST` or `CIFAR10` dataset!'
 

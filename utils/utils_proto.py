@@ -1,8 +1,16 @@
+"""utils_proto.py — Prototype-focused evaluation helpers for DFedDG2.
+
+A lightweight subset of utils.py that provides client evaluation and
+neighbour-selection utilities used by prototype-based communication modules
+(e.g., comm_decood, comm_vmf_gossip).  Functions here mirror those in utils.py
+but may use a simplified return signature.
+"""
+
 import copy
 import torch
 import numpy as np
 import torch.nn as nn
-from numpy import random 
+from numpy import random
 from multiprocessing import pool
 from collections import OrderedDict
 from sklearn.metrics.pairwise import cosine_similarity
@@ -11,23 +19,33 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 def evaluate_clients(clients, test_loader=None):
-   round_avg_lacc = 0
-   
-   K = len(clients)
-   # Load averaged weights in client(global models)
-   for i in range(K):
-       
-       #local test performance
-       test_acc, _, _ = clients[i].performance_test()
-       #clients[i].l_test_loss_hist.append(rl_loss)
-       clients[i].l_test_acc_hist.append(test_acc)
-       print(f'Client id: {clients[i].id}, Test Lacc: {test_acc:.2f}')    ################
+    """Evaluate all clients on local test sets and return mean accuracy.
 
-       round_avg_lacc += test_acc   
-       
-   round_avg_lacc /= K
-   
-   return round_avg_lacc
+    Calls ``client.performance_test()`` which returns ``(acc, auc, unc)``; only
+    the first value (accuracy) is used here.  The AUC and uncertainty outputs
+    are discarded (``_``).
+
+    Args:
+        clients: List of client objects with ``performance_test()`` and
+            ``l_test_acc_hist`` attributes.
+        test_loader: Unused; each client uses its internal test loader.
+
+    Returns:
+        float: Mean local test accuracy across all K clients.
+    """
+    round_avg_lacc = 0
+
+    K = len(clients)
+    for i in range(K):
+        test_acc, _, _ = clients[i].performance_test()
+        clients[i].l_test_acc_hist.append(test_acc)
+        print(f'Client id: {clients[i].id}, Test Lacc: {test_acc:.2f}')
+
+        round_avg_lacc += test_acc
+
+    round_avg_lacc /= K
+
+    return round_avg_lacc
 
 
 
@@ -87,16 +105,25 @@ def evaluate_clients_tmp(clients, test_loader):
 
 
 def clients_to_communicate_with(args, client, clients):
-    '''
-    #From: paper PENS decentralized federated learning 
-    param: args: arguments
-           client: current client (c)
-           clients : adjacent clients of c     
+    """Select neighbours using prototype dissimilarity (proto-based strategy).
 
-    returns: neighbors: selected adjacent clients
-             weights    
-              
-    '''
+    From PENS (Decentralised Federated Learning with Peer-to-Peer Neighbour
+    Selection).  For each candidate adjacent client, computes prototype
+    dissimilarity (MSE) between local and remote per-class feature means.
+    Selects clients whose dissimilarity score exceeds the peer average, or
+    greedily picks the top-``args.num_sel_clients`` most diverse ones.
+
+    Args:
+        args: Namespace with fields: ``neighbour_selection``,
+            ``n_samplings``, ``neighbour_exploration``, ``num_sel_clients``.
+        client: The querying client (its prototypes are compared against peers).
+        clients: List of adjacent client objects to consider.
+
+    Returns:
+        tuple[list, None]:
+            - neighbours: Selected client objects.
+            - weights: Always None for this strategy.
+    """
     weights = None
     
     adj = [c.id for c in clients]
