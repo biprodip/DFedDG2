@@ -363,6 +363,7 @@ DFedDG2/
 
 ## Bibtex
 
+```
 @ARTICLE{11408173,
   author={Pal, Biprodip and Funiak, Stano and Liu, Jiajun and Moghadam, Peyman and Islam, Md. Saiful and Liew, Alan Wee-Chung},
   journal={IEEE Internet of Things Journal}, 
