@@ -43,7 +43,7 @@ Each round proceeds in five phases:
 | 2. Local Update | Each client trains for `local_epochs` using CE + CompLoss + DisLoss aligning local knowledge to global knowledge|
 | 3. Weight Computation | For each client, compute vMF log-likelihoods of local features under each neighbor's embedding distribution; softmax-normalize to gossip weights w_j |
 | 4. Aggregation | Collect weighted neighbor aggregated embeddings and dispersion; estimate per-class vMF concentration κ̂  |
-| 5. Post-Gossip Injection | Commit aggregated prototypes to `global_protos`; inject into DisLoss EMA buffer |
+| 5. Post-Gossip Injection | Commit aggregated embeddings to `global_protos`; inject into DisLoss EMA buffer |
 
 ### Loss Variants (`--decood_loss_code`)
 
