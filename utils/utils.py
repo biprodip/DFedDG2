@@ -14,6 +14,7 @@ Neighbour selection strategies (``clients_to_communicate_with``)
 """
 
 import copy
+import logging
 import torch
 import numpy as np
 import torch.nn as nn
@@ -21,6 +22,8 @@ from numpy import random
 from multiprocessing import pool
 from collections import OrderedDict
 from sklearn.metrics.pairwise import cosine_similarity
+
+LOGGER = logging.getLogger(__name__)
 
 
 
@@ -42,19 +45,19 @@ def count_params(client, comm_algo):
     """
     tot_param = 0
     if comm_algo == 'comm_dis_pfl':
-            total_params_to_send, non_zero_params, mask_params = client.count_params()  #from model and masks
-            print(f'Parameters of client: total: {total_params_to_send}, non_zero_params: {non_zero_params} mask: {mask_params}')
+        total_params_to_send, non_zero_params, mask_params = client.count_params()  #from model and masks
+        LOGGER.info("Parameters of client: total: %s, non_zero_params: %s mask: %s", total_params_to_send, non_zero_params, mask_params)
 
-        elif comm_algo=='comm_gossip' or comm_algo=='comm_penz':
-            model_params = client.count_params()  #from model and masks
-            print(f'Total parameters of client: {model_params}')
+    elif comm_algo=='comm_gossip' or comm_algo=='comm_penz':
+        model_params = client.count_params()  #from model and masks
+        LOGGER.info("Total parameters of client: %s", model_params)
 
-        elif comm_algo=='comm_decood_w':
-            proto_params, model_params = client.count_params()  #from model and masks  
-            print(f'Parameters of client: all_class_proto_params : {proto_params} model_params : {model_params}')
-        
-        else:
-            print('utils.py: Prototype count function undefined for specified algorithm!')
+    elif comm_algo=='comm_decood_w':
+        proto_params, model_params = client.count_params()  #from model and masks
+        LOGGER.info("Parameters of client: all_class_proto_params : %s model_params : %s", proto_params, model_params)
+
+    else:
+        LOGGER.warning("utils.py: Prototype count function undefined for specified algorithm!")
 
 
 
@@ -93,26 +96,6 @@ def get_matrix_cosine_similarity_from_grads(local_model_grads):
     return similarity
 
 
-# def evaluate_clients(clients, test_loader=None):
-#    round_avg_lacc = 0
-   
-#    K = len(clients)
-#    # Load averaged weights in client(global models)
-#    for i in range(K):
-       
-#        #local test performance
-#        test_acc, test_num,_ = clients[i].performance_test()
-#        #clients[i].l_test_loss_hist.append(rl_loss)
-#        clients[i].l_test_acc_hist.append(test_acc/test_num)
-#        print(f'Clinet id: {clients[i].id},\nLacc: {test_acc/test_num:.2f}')
-
-#        round_avg_lacc += test_acc/test_num   
-       
-   
-#    round_avg_lacc /= K
-   
-#    return round_avg_lacc
-
 
 
 def evaluate_clients(clients, test_loader=None):
@@ -144,13 +127,13 @@ def evaluate_clients(clients, test_loader=None):
        test_acc, test_auc, test_unc = clients[i].performance_test()
        #clients[i].l_test_loss_hist.append(rl_loss)
        clients[i].l_test_acc_hist.append(test_acc)
-       print(f'Client id: {clients[i].id}, Test Lacc: {test_acc:.2f}')
+       LOGGER.info("Client id: %s, Test Lacc: %.2f", clients[i].id, test_acc)
 
-       round_avg_lacc += test_acc   
-   
-   round_avg_lacc /= K
-   
-   return round_avg_lacc
+       round_avg_lacc += test_acc
+
+    round_avg_lacc /= K
+
+    return round_avg_lacc
 
 
 
@@ -172,7 +155,7 @@ def evaluate_clients_tmp(clients, test_loader):
        clients[i].l_test_acc_hist.append(rl_acc)
        clients[i].l_test_auc_hist.append(rl_auc)
        clients[i].l_test_unc_hist.append(rl_unc)
-       print(f'Clinet id: {clients[i].id},\nLacc: {rl_acc:.2f},  Lunc: {rl_unc:.2f}')
+       LOGGER.info("Clinet id: %s,\nLacc: %.2f,  Lunc: %.2f", clients[i].id, rl_acc, rl_unc)
 
        round_avg_lacc += rl_acc  
        round_avg_lauc += rl_auc  
@@ -187,7 +170,7 @@ def evaluate_clients_tmp(clients, test_loader):
            clients[i].g_test_auc_hist.append(rg_auc)
            clients[i].g_test_unc_hist.append(rg_unc)
            #print(f'Clinet id: {clients[i].id}, Lloss: {rl_loss:.2f}  Lacc: {rl_acc:.2f}, Lunc: {rl_unc:.2f}, Gloss: {rg_loss:.2f}  Gacc: {rg_acc:.2f} Gunc: {rg_unc:.2f}')
-           print(f'Gacc: {rg_acc:.2f} Gunc: {rg_unc:.2f} ')
+           LOGGER.info("Gacc: %.2f Gunc: %.2f", rg_acc, rg_unc)
                   
            round_avg_gacc += rg_acc
            round_avg_gauc += rg_auc
@@ -201,7 +184,7 @@ def evaluate_clients_tmp(clients, test_loader):
        round_avg_gauc /= K
        round_avg_gunc /= K
    else:
-       print('No global test set, so no global result.')
+       LOGGER.warning("No global test set, so no global result.")
    
    return round_avg_lacc, round_avg_gacc, round_avg_lauc, round_avg_gauc,round_avg_lunc, round_avg_gunc
 
@@ -239,17 +222,6 @@ def eval_protos(protos1, protos2):
     loss_mse = nn.MSELoss()
     return loss_mse(protos1, protos2)
 
-# def cosine_similarity(v1, v2):
-#     return nn.functional.cosine_similarity(v1, v2, dim=0)
-
-
-# def get_gradients(model):
-#     gradients = []
-#     for param in model.parameters():
-#         if param.requires_grad and param.grad is not None:
-#             gradients.append(param.grad.view(-1))
-#     return torch.cat(gradients)    
-
 
 
 def clients_to_communicate_with(args, client, clients):
@@ -282,29 +254,28 @@ def clients_to_communicate_with(args, client, clients):
     weights = None
     
     adj = [c.id for c in clients]
-    ############################print(f'{client.id} and adjacents are {adj}')
         
     if args.neighbour_selection == "random":
-        print('\nRandom neighbour selection')
+        LOGGER.info("Random neighbour selection")
         #critical case
         n_neighbours = (args.num_sel_clients if len(clients) >= args.num_sel_clients else len(clients))
         #select neighbours
         neighbours = np.random.choice(clients, n_neighbours, replace=False)
         
     elif args.neighbour_selection == "ideal":
-        print('\nIdeal same cluster random neighbours selection')
+        LOGGER.info("Ideal same cluster random neighbours selection")
         #same cluster random neighbours selection
 
         clients_to_choose_from = [client_ for client_ in clients if client_.cluster == client.cluster ]
         if len(clients_to_choose_from) >= args.num_sel_clients:
-            neighbours = np.random.choice(clients_to_choose_from, args.num_sel_clients, replace=False )
+            neighbours = np.random.choice(clients_to_choose_from, args.num_sel_clients, replace=False)
         else:
-            print('Total clients to select is less than clients pool')
+            LOGGER.warning("Total clients to select is less than clients pool")
 
     
     elif args.neighbour_selection == "loss_based":
         #selected if greater than avg 1/loss of all peers
-        print('\nLoss based neighbor selection in penz')
+        LOGGER.info("Loss based neighbor selection in penz")
         # Sample 10 times
         
         for _ in range(args.n_samplings):
@@ -318,53 +289,13 @@ def clients_to_communicate_with(args, client, clients):
                 #train_loss, train_acc = evaluate(client.model, other_client.train_loader)
                 other_clients_metric[other_client] = 1 / (train_loss + 1e-5) #zero div protection
             
-            
-            # other_clients_sorted_by_metric = sorted(
-            #     other_clients_metric, key=other_clients_metric.get, reverse=True
-            # )
-            
-            
-            # if args.neighbour_exploration == "greedy":
-            #     neighbours = other_clients_sorted_by_metric[: args.num_sel_clients]
-            
-            # elif args.neighbour_exploration == "sampling":
-            #     print('Sampling based neighbours')
-            #     probs = np.array(list(other_clients_metric.values()))
-            #     probs = probs / sum(probs)
-            #     neighbours = np.random.choice(
-            #         list(other_clients_metric.keys()),
-            #         size=args.num_sel_clients,
-            #         replace=False,
-            #         p=probs,
-            #     )
-                
-            # elif args.neighbour_exploration == "weights":
-            #     print('weighted performance based neighbours')
-            #     val_loss, val_acc = (
-            #         client.history["val_losses"][-1],
-            #         client.history["val_accs"][-1],
-            #     )
-            #     own_client_metric = (
-            #         1 / (val_loss + 1e-5)
-            #         #val_acc
-            #     )
-            #     weights = np.array(
-            #         list(other_clients_metric.values()) + [own_client_metric]
-            #     )
-            #    neighbours = clients_to_consider
-
-            # elif args.neighbour_exploration == "topk":
-            #     print('topK performance based neighbours')
-            #     candidates = other_clients_sorted_by_metric[: args.topk]
-            #     neighbours = np.random.choice(candidates, size=args.num_sel_clients)
-            
             avg_metric = sum(other_clients_metric.values()) / len(other_clients_metric)
             neighbours = [k for k, v in zip(other_clients_metric.keys(),other_clients_metric.values()) if v > avg_metric]
             
 
     elif args.neighbour_selection == "grad_based":
-        #selected if greater than average similarity or args.threshold(0.75) 
-        print('\nGrad based neighbor selection.')
+        #selected if greater than average similarity or args.threshold(0.75)
+        LOGGER.info("Grad based neighbor selection.")
         # Sample 10 times
         
         for _ in range(args.n_samplings):
@@ -379,17 +310,9 @@ def clients_to_communicate_with(args, client, clients):
                 all_grads += [client.grad]
                 all_grads += [other_client.grad]
                 
-    
-                ############
-                # model1_gradients = get_gradients(client.model)
-                # model2_gradients = get_gradients(other_client.model)
-
-                # model1_gradients = get_gradients(client.head)
-                # model2_gradients = get_gradients(other_client.head)
-
                 #sim_score = cosine_similarity(model1_gradients, model2_gradients)
                 sim_score = get_matrix_cosine_similarity_from_grads(all_grads)
-                print(f'Grad similarity with id: {other_client.id} is {sim_score}')
+                LOGGER.debug("Grad similarity with id: %s is %s", other_client.id, sim_score)
 
                 
                 if sim_score>args.grad_thres: #keep only positive cosine similarities
@@ -402,22 +325,10 @@ def clients_to_communicate_with(args, client, clients):
             )
             
             neighbours = other_clients_sorted_by_metric
-            # if args.neighbour_exploration == "greedy":
-            #     neighbours = other_clients_sorted_by_metric[: args.num_sel_clients]
-            
-            # elif args.neighbour_exploration == "sampling":
-            #     print('Sampling based neighbours')
-            #     print(other_clients_metric.values())
-            #     probs = nn.functional.softmax(other_clients_metric.values(), dim=0)  ####negative values      #######################################
-            #     neighbours = np.random.choice(
-            #         list(other_clients_metric.keys()),
-            #         size=args.num_sel_clients,
-            #         replace=False,
-            #         p=probs,
-            #     )
+       
 
     elif args.neighbour_selection == "hybrid":  #loss based selection of n_neighbor and diversity based weight
-        print('performance based neighbor selection')
+        LOGGER.info("performance based neighbor selection")
         # Sample 10 times
         
         for _ in range(args.n_samplings):
@@ -442,7 +353,7 @@ def clients_to_communicate_with(args, client, clients):
                 clients_to_consider = other_clients_sorted_by_metric[: args.num_sel_clients]
             
             elif args.neighbour_exploration == "sampling":
-                print('Sampling based neighbours')
+                LOGGER.info("Sampling based neighbours")
                 probs = np.array(list(other_clients_metric.values()))
                 probs = probs / sum(probs)
                 clients_to_consider = np.random.choice(
@@ -463,12 +374,9 @@ def clients_to_communicate_with(args, client, clients):
                 #train_loss, train_acc = evaluate(client.model, other_client.train_loader)
                 diversity_client_metric[other_client] = diversity_Loss  #+ other loss
 
-            # other_clients_sorted_by_diversity = sorted(
-            #     diversity_client_metric, key=diversity_client_metric.get, reverse=True
-            # )
 
             if args.neighbour_exploration == "weights":
-                print('weighted performance based neighbours')
+                LOGGER.info("weighted performance based neighbours")
                 
                 weight = np.array(list(diversity_client_metric.values()))
                 weight = weight / sum(weight)
@@ -477,7 +385,7 @@ def clients_to_communicate_with(args, client, clients):
             
 
     elif args.neighbour_selection == "mixed_loss":       #select and weight everyone based on mixed loss
-        print('performance based neighbor selection')
+        LOGGER.info("performance based neighbor selection")
         # Sample 10 timesselected
         
         for _ in range(args.n_samplings):
@@ -495,6 +403,7 @@ def clients_to_communicate_with(args, client, clients):
                 other_client.collect_protos(client.train_loader) #gt protos on provided dataset
                 diversity_Loss  = eval_protos(client.protos, other_client.protos)
                 
+                alpha = 0.5  # weight balancing loss vs diversity
                 other_clients_metric[other_client] =  alpha * (1 / (target_loss + 1e-5)) + (1-alpha) * diversity_Loss  #+ other loss
 
             
@@ -507,7 +416,7 @@ def clients_to_communicate_with(args, client, clients):
             if args.neighbour_exploration == "greedy":
                 clients_to_consider = other_clients_sorted_by_metric[: args.num_sel_clients]
             elif args.neighbour_exploration == "sampling":
-                print('Sampling based neighbours')
+                LOGGER.info("Sampling based neighbours")
                 probs = np.array(list(other_clients_metric.values()))
                 probs = probs / sum(probs)
                 neighbours = np.random.choice(
@@ -517,7 +426,7 @@ def clients_to_communicate_with(args, client, clients):
                     p=probs,
                 )
             elif args.neighbour_exploration == "weights":
-                print('weighted performance based neighbours')
+                LOGGER.info("weighted performance based neighbours")
                 val_loss, val_acc = (
                     client.history["val_losses"][-1],
                     client.history["val_accs"][-1],
@@ -532,10 +441,14 @@ def clients_to_communicate_with(args, client, clients):
                 neighbours = clients_to_consider
             
             elif args.neighbour_exploration == "topk":
-                print('topK performance based neighbours')
+                LOGGER.info("topK performance based neighbours")
                 candidates = other_clients_sorted_by_metric[: args.topk]
                 neighbours = np.random.choice(candidates, size=args.num_sel_clients)
 
-
+    else:
+        raise ValueError(
+            f"Unknown neighbour_selection '{args.neighbour_selection}'. "
+            "Choose from: random, ideal, loss_based, grad_based, hybrid, mixed_loss"
+        )
 
     return neighbours, weights

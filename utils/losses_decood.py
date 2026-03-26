@@ -30,31 +30,9 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import time
 from collections import defaultdict
+import time
 
-
-def binarize(T, nb_classes):
-    """
-    Convert integer class labels to a one-hot binary matrix.
-
-    Args:
-        T (Tensor): 1-D integer label tensor of shape [N].
-        nb_classes (int): Total number of classes.
-
-    Returns:
-        Tensor: Float tensor of shape [N, nb_classes] with one-hot rows.
-
-    Note:
-        Relies on the global ``args.device`` for output placement.
-    """
-    T = T.cpu().numpy()
-    import sklearn.preprocessing
-    T = sklearn.preprocessing.label_binarize(
-        T, classes = range(0, nb_classes)
-    )
-    T = torch.FloatTensor(T).to(args.device)
-    return T
 
 def l2_norm(input):
     """
@@ -77,62 +55,6 @@ def l2_norm(input):
     output = _output.view(input_size)
     return output
 
-
-class Proxy_Anchor(torch.nn.Module):
-    """
-    Proxy Anchor loss for deep metric learning (Kim et al., CVPR 2020).
-
-    Each class is represented by a learnable proxy vector. The loss pulls
-    samples toward their positive proxy and pushes them away from negative
-    proxies using margin-based exponential terms.
-
-    Args:
-        nb_classes (int): Number of classes (one proxy per class).
-        sz_embed (int): Embedding dimensionality.
-        mrg (float): Margin applied to positive/negative cosine similarities.
-        alpha (float): Scaling factor controlling loss sharpness.
-    """
-    def __init__(self, nb_classes, sz_embed, mrg = 0.1, alpha = 32):
-        torch.nn.Module.__init__(self)
-        self.proxies = torch.nn.Parameter(torch.randn(nb_classes, sz_embed).to(args.device))
-        nn.init.kaiming_normal_(self.proxies, mode='fan_out')
-
-        self.nb_classes = nb_classes
-        self.sz_embed = sz_embed
-        self.mrg = mrg
-        self.alpha = alpha
-
-    def forward(self, X, T):
-        """
-        Compute the Proxy Anchor loss for a batch of embeddings.
-
-        Args:
-            X (Tensor): Embedding matrix of shape [N, D].
-            T (Tensor): Integer class labels of shape [N].
-
-        Returns:
-            Tensor: Scalar loss value.
-        """
-        P = self.proxies
-
-        cos = F.linear(l2_norm(X), l2_norm(P))  # Cosine similarity: [N, nb_classes]
-        P_one_hot = binarize(T = T, nb_classes = self.nb_classes)
-        N_one_hot = 1 - P_one_hot
-
-        pos_exp = torch.exp(-self.alpha * (cos - self.mrg))
-        neg_exp = torch.exp(self.alpha * (cos + self.mrg))
-
-        with_pos_proxies = torch.nonzero(P_one_hot.sum(dim = 0) != 0).squeeze(dim = 1)  # Proxies with at least one positive sample in the batch
-        num_valid_proxies = len(with_pos_proxies)
-
-        P_sim_sum = torch.where(P_one_hot == 1, pos_exp, torch.zeros_like(pos_exp)).sum(dim=0)
-        N_sim_sum = torch.where(N_one_hot == 1, neg_exp, torch.zeros_like(neg_exp)).sum(dim=0)
-
-        pos_term = torch.log(1 + P_sim_sum).sum() / num_valid_proxies
-        neg_term = torch.log(1 + N_sim_sum).sum() / self.nb_classes
-        loss = pos_term + neg_term
-
-        return loss
 
 
 
@@ -285,7 +207,7 @@ class CompLoss(nn.Module):
         log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
 
         # compute mean of log-likelihood over positive
-        mean_log_prob_pos = (mask * log_prob).sum(1) 
+        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
 
         # loss
         loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos.mean()
@@ -463,6 +385,5 @@ class DisLoss(nn.Module):
             # approximation. The older variant is no longer active.
 
             duration = time.time() - start  # Prototype initialization wall-clock time (log if needed)
-
             prototypes = F.normalize(prototypes, dim=1)
             self.prototypes = prototypes

@@ -14,8 +14,11 @@ import cvxpy as cp
 import networkx as nx
 import numpy as np
 import os
+import logging
 from comm_utils.mst import *
 import pickle
+
+LOGGER = logging.getLogger(__name__)
 
 
 
@@ -123,26 +126,20 @@ def get_mixing_matrix(args, n, p, seed):
     
     #load saved adj mat
     if os.path.isfile(relative_path):
-        print(f'Found {absolute_path} adjacency matrix file.')
         with open(relative_path, 'rb') as f:
             mixing_mat, mst = pickle.load(f)
             f.close()
-            print('Adjacency and MST Loaded from file.')
-            print('Loaded Erdos Renoyi graph for sparse topology.')
     else:
-        print(f'Adjacency matrix {absolute_path} file not found.')
+        LOGGER.warning("Adjacency matrix %s file not found.", absolute_path)
         #create mixing matrix
         graph = get_communication_graph(n, p, seed)
         adj_mat = nx.adjacency_matrix(graph, weight=None).todense()
         mixing_mat = compute_mixing_matrix(adj_mat)
-        print('Created Erdos Renoyi graph for sparse topology.')
-        print(f'Adjacency_matrix : {adj_mat}')
-        
+
         #get mst
         mst = get_mst(adj_mat)
-        with open(relative_path, 'wb') as f: 
+        with open(relative_path, 'wb') as f:
                 pickle.dump([mixing_mat, mst], f)
                 f.close()
-                print('Adjacency, MST and Mixing Matrix saved in'+'data/'+filename+str(args.num_clients)+'.pkl')
     
     return mixing_mat

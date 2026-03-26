@@ -7,6 +7,7 @@ but may use a simplified return signature.
 """
 
 import copy
+import logging
 import torch
 import numpy as np
 import torch.nn as nn
@@ -14,6 +15,8 @@ from numpy import random
 from multiprocessing import pool
 from collections import OrderedDict
 from sklearn.metrics.pairwise import cosine_similarity
+
+LOGGER = logging.getLogger(__name__)
 
 
 
@@ -39,7 +42,7 @@ def evaluate_clients(clients, test_loader=None):
     for i in range(K):
         test_acc, _, _ = clients[i].performance_test()
         clients[i].l_test_acc_hist.append(test_acc)
-        print(f'Client id: {clients[i].id}, Test Lacc: {test_acc:.2f}')
+        LOGGER.info("Client id: %s, Test Lacc: %.2f", clients[i].id, test_acc)
 
         round_avg_lacc += test_acc
 
@@ -67,7 +70,7 @@ def evaluate_clients_tmp(clients, test_loader):
        clients[i].l_test_acc_hist.append(rl_acc)
        clients[i].l_test_auc_hist.append(rl_auc)
        clients[i].l_test_unc_hist.append(rl_unc)
-       print(f'Clinet id: {clients[i].id},\nLacc: {rl_acc:.2f},  Lunc: {rl_unc:.2f}')
+       LOGGER.info("Clinet id: %s,\nLacc: %.2f,  Lunc: %.2f", clients[i].id, rl_acc, rl_unc)
 
        round_avg_lacc += rl_acc  
        round_avg_lauc += rl_auc  
@@ -82,7 +85,7 @@ def evaluate_clients_tmp(clients, test_loader):
            clients[i].g_test_auc_hist.append(rg_auc)
            clients[i].g_test_unc_hist.append(rg_unc)
            #print(f'Clinet id: {clients[i].id}, Lloss: {rl_loss:.2f}  Lacc: {rl_acc:.2f}, Lunc: {rl_unc:.2f}, Gloss: {rg_loss:.2f}  Gacc: {rg_acc:.2f} Gunc: {rg_unc:.2f}')
-           print(f'Gacc: {rg_acc:.2f} Gunc: {rg_unc:.2f} ')
+           LOGGER.info("Gacc: %.2f Gunc: %.2f", rg_acc, rg_unc)
                   
            round_avg_gacc += rg_acc
            round_avg_gauc += rg_auc
@@ -96,7 +99,7 @@ def evaluate_clients_tmp(clients, test_loader):
        round_avg_gauc /= K
        round_avg_gunc /= K
    else:
-       print('No global test set, so no global result.')
+       LOGGER.warning("No global test set, so no global result.")
    
    return round_avg_lacc, round_avg_gacc, round_avg_lauc, round_avg_gauc,round_avg_lunc, round_avg_gunc
 
@@ -129,7 +132,7 @@ def clients_to_communicate_with(args, client, clients):
     adj = [c.id for c in clients]
 
     if args.neighbour_selection == "proto":  #loss based selection of n_neighbor and diversity based weight
-        print('Proto similarity based neighbor selection')
+        LOGGER.info("Proto similarity based neighbor selection")
         # Sample 10 times
         
         for _ in range(args.n_samplings):
@@ -143,7 +146,7 @@ def clients_to_communicate_with(args, client, clients):
             for other_client in clients_to_consider:
                 #other_client.target_protos(client.train_loader) #gt protos on clients dataset
                 other_client.collect_protos()
-                print(f'Dim of protos: {client.protos}')
+                LOGGER.debug("Dim of protos: %s", client.protos)
                 proto_disimilarity  = eval_protos(client.protos, other_client.protos)
 
                 #train_loss, train_acc = evaluate(client.model, other_client.train_loader)

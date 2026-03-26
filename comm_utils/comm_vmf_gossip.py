@@ -35,11 +35,14 @@ Key functions
 from utils.utils_proto import *
 from collections import defaultdict
 import json
+import logging
 import time
 import numpy as np
 import torch.nn.functional as F
 from scipy.special import ive
 from comm_utils.decentralized import *
+
+LOGGER = logging.getLogger(__name__)
 
 def make_doubly_stochastic(W, iters=5, eps=1e-12):
     """
@@ -97,10 +100,15 @@ def compute_log_C(kappa: torch.Tensor, d: int) -> torch.Tensor:
     # Transfer to numpy; clip to avoid zeros in log
     k_np = kappa.detach().cpu().numpy()
     k_np = np.clip(k_np, 1e-300, None)
+    tiny = np.finfo(np.float64).tiny
 
     # ive(ν, κ) = exp(-|κ|)·I_ν(κ)  →  I_ν(κ) = exp(|κ|)·ive(ν, κ)
     ive_vals = ive(nu, k_np)
-    ive_vals = np.maximum(ive_vals, 1e-300)  # Guard against underflow to zero
+    # ive_vals = np.maximum(ive_vals, 1e-300)  # Guard against underflow to zero
+
+    # Guard against zeros / negatives / nan
+    ive_vals = np.where(np.isfinite(ive_vals), ive_vals, tiny)
+    ive_vals = np.clip(ive_vals, tiny, None)
 
     # log I_ν(κ) using the exponentially-scaled form for numerical stability
     logI = np.log(ive_vals) + np.abs(k_np)
@@ -371,13 +379,15 @@ def comm_vmf_gossip(args, adj, clients, debug=False, test_loader=None):
 
     for rnd in range(args.num_rounds):
 
+        LOGGER.info("Round %02d", rnd)
+
         # --- Phase 1: Dynamic topology (resample graph each round) --------
         if args.dynamic_topo == 1:
             graph = get_communication_graph(adj.shape[0], 0.5, 3 + rnd)  # Erdős–Rényi p=0.5, deterministic seed per round
             adj_mat = nx.adjacency_matrix(graph, weight=None).todense()
             adj = torch.from_numpy(np.array(adj_mat)).float().to(clients[0].device)
             adj = make_doubly_stochastic(adj)
-            print(f'New mixing mat: {adj}')
+            # print(f'\nNew mixing mat: {adj}')
 
         # --- Phase 2: Local updates ----------------------------------------
         t0 = time.perf_counter()
@@ -388,7 +398,7 @@ def comm_vmf_gossip(args, adj, clients, debug=False, test_loader=None):
             local_times.append(end - start)
         t1 = time.perf_counter()
 
-        print(adj)
+        # print(adj)
 
         # --- Phase 3: Compute vMF-likelihood gossip weights ---------------
         for i, cli in enumerate(clients):
@@ -448,6 +458,7 @@ def comm_vmf_gossip(args, adj, clients, debug=False, test_loader=None):
                 W = (1 - eps) * W + eps * A
                 adj = make_doubly_stochastic(W)
 
+
         # --- Phase 4: Prototype aggregation --------------------------------
         tg0 = time.perf_counter()
         for i, cli in enumerate(clients):
@@ -471,14 +482,15 @@ def comm_vmf_gossip(args, adj, clients, debug=False, test_loader=None):
 
         lacc = evaluate_clients(clients, test_loader)
         avg_l_acc.append(lacc)
-        print(f'Round {rnd:02d}  |  Avg test-ACC: {lacc:.4f}')
+        LOGGER.info("Avg test-ACC: %.4f", lacc)
 
         mean_local  = sum(local_times) / len(local_times)
         mean_gossip = sum(gossip_times) / len(gossip_times) / args.num_rounds
-        print(f'Mean local time:{mean_local}, Mean gossip time:{mean_gossip}')
+        LOGGER.info("Mean local time: %.4f s", mean_local)
+        LOGGER.info("Mean gossip time: %.4f s", mean_gossip)
 
     # Save kappa history (results list is currently a placeholder for future logging)
-    with open("global_local_kappa_history.json", "w") as fp:
-        json.dump(results, fp, indent=4)
+    # with open("experiments/global_local_kappa_history.json", "w") as fp:
+    #     json.dump(results, fp, indent=4)
 
     return avg_l_acc

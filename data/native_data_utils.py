@@ -32,12 +32,15 @@ load_dataset            : Full dataset loading entry point (MNIST, FashionMNIST,
 """
 
 import os
+import logging
 import torch
 import numpy as np
 from torch import nn
 from math import sqrt
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
+
+LOGGER = logging.getLogger(__name__)
 
 
 def dist_iid(dataset_train, dataset_test, num_clients, isCFL=False):
@@ -143,7 +146,7 @@ def dist_pathological(dataset, num_clients, shard_size):
     #large shards can make some deprive some clients from getting any shard
 
     #assert args.dataset in ['MNIST', 'CIFAR10'], '[ERROR] `pathological non-IID setting` is supported only for `MNIST` or `CIFAR10` dataset!'
-    print(f'Data Length: {len(dataset)},Shard Size: {shard_size},Tot Clients: {num_clients}')
+    LOGGER.info("Data Length: %s, Shard Size: %s, Tot Clients: %s", len(dataset), shard_size, num_clients)
     #if not at least 2 classes per client, raise error
     assert len(dataset) / shard_size / num_clients == 2, '[ERROR] each client should have samples from class at least 2 different classes!'
         
@@ -177,7 +180,7 @@ def dist_pathological_clust(train_dataset, test_dataset, num_clients, shard_size
     return: Dictionary of client indices and their data sample indices for train and test sets
     """
     # If not at least 2 classes per client, raise an error
-    print(f'Dataset Size: {len(train_dataset)}, Clients: {num_clients} ')
+    LOGGER.info("Dataset Size: %s, Clients: %s", len(train_dataset), num_clients)
     #assert len(train_dataset) / shard_size / num_clients == 2, '[ERROR] each client should have samples from at least 2 different classes!'
 
     # Sort train and test data by labels
@@ -191,7 +194,6 @@ def dist_pathological_clust(train_dataset, test_dataset, num_clients, shard_size
     # Get (len(train_dataset) // shard_size) and (len(test_dataset) // shard_size) splitted groups of data indices for every shard
     shard_indices_train = np.array_split(sorted_train_indices, len(train_dataset) // shard_size_train)
     shard_indices_test = np.array_split(sorted_test_indices, len(test_dataset) // shard_size_test)
-    #print(f'Shard split size:{len(shard_indices_train)} Total Clients: {num_clients} in cluster.')
 
     # Sort the lists to conveniently assign samples to each client from at least two classes for train and test sets
     split_indices_train = [[] for _ in range(num_clients)]
@@ -249,8 +251,6 @@ def dist_dirichlet(dataset, num_clients, alpha, num_classes, global_seed, isCFL=
     client_indices_list = [[] for _ in range(int(num_clients))]
 
     # iterate through all classes
-    # print(f'Classes in dataset....: {np.where(np.array(get_targets(dataset))==0)}')
-
     min_size = 0
     min_require_size = 10
 
@@ -265,19 +265,18 @@ def dist_dirichlet(dataset, num_clients, alpha, num_classes, global_seed, isCFL=
 
             # shuffle class indices
             np.random.shuffle(target_class_indices)
-            print(f'Target class {c} indices: {len(target_class_indices)}')
+            LOGGER.debug("Target class %s indices: %s", c, len(target_class_indices))
 
             # get label retrieval probability per each client based on a Dirichlet distribution
             proportions = np.random.dirichlet(np.repeat(alpha, num_clients))
             proportions = np.array([p * (len(idx) < len(dataset) / num_clients) for p, idx in zip(proportions, client_indices_list)])
-            print(f'Proportions of class {c} : {proportions}')
+            LOGGER.debug("Proportions of class %s : %s", c, proportions)
 
             # normalize
             proportions = proportions / proportions.sum()
-            #print(f'Prob propottions of class {c} : {proportions}')
             proportions = (np.cumsum(proportions) * len(target_class_indices)).astype(int)[:-1]
-            print(f'Final proportions of class {c} : {proportions}')
-            print(f'Sum of proportions {sum(proportions)}')
+            LOGGER.debug("Final proportions of class %s : %s", c, proportions)
+            LOGGER.debug("Sum of proportions %s", sum(proportions))
             
 
             # split class indices by proportions
@@ -286,7 +285,7 @@ def dist_dirichlet(dataset, num_clients, alpha, num_classes, global_seed, isCFL=
             client_indices_list = [j + idx.tolist() for j, idx in zip(client_indices_list, idx_split)]
             min_size = min([len(idx_j) for idx_j in client_indices_list])
 
-        print(f'Attempt: {try_cnt}')
+        LOGGER.debug("Attempt: %s", try_cnt)
         try_cnt += 1
 
     # shuffle finally and create a hashmap
@@ -326,9 +325,7 @@ def dist_dirichlet_clust(train_dataset, test_dataset, num_clients, alpha, num_cl
         if isCFL:
             train_class_indices = np.where(np.array(get_targets(train_dataset))==c)[0]
             test_class_indices = np.where(np.array(get_targets(test_dataset))==c)[0]
-            #print(train_class_indices)
-            #print(test_class_indices)
-        else:
+            else:
             train_class_indices = np.where(np.array(train_dataset.targets) == c)[0]
             test_class_indices = np.where(np.array(test_dataset.targets) == c)[0]
 
@@ -583,8 +580,6 @@ def cluster_train_test_set_label(dataset_train, dataset_test, n):
     labels = np.array(get_targets(dataset_train))
     unique_labels = np.unique(labels)
     num_classes = len(unique_labels)
-    # print(f'Unique labels: {unique_labels}')
-    
     #Get test labels
     idxs_test = np.arange(len(dataset_test), dtype=int)
     labels_test = np.array(get_targets(dataset_test))
@@ -596,7 +591,6 @@ def cluster_train_test_set_label(dataset_train, dataset_test, n):
         labels_cluster[i] = np.random.choice(
             unique_labels, int(num_classes / n), replace=False
         )
-        # print(f'Label cluster: {labels_cluster[i]}')
         unique_labels = list(set(unique_labels) - set(labels_cluster[i]))
 
     train_set_clusters = {} #clusters
@@ -617,9 +611,6 @@ def cluster_train_test_set_label(dataset_train, dataset_test, n):
 
         train_set_clusters[i] = DatasetSplit(dataset_train, train_idxs)  #contains ith cluster samples suppose all samples of class 1,3and 4
         test_set_clusters[i] = DatasetSplit(dataset_test, test_idxs)
-
-        # print(f'Train idx in cluster: {np.unique(labels[train_idxs], return_counts=True)}')
-        # print(np.unique(labels_test[test_idxs], return_counts=True))
 
     return train_set_clusters, test_set_clusters  #n group/cluster of samples
 
@@ -658,7 +649,7 @@ def load_dataset(args):
         data_dir = '../data/fmnist/'
     else:
         data_dir = '../data/cifar/'
-    print(f'\nDownloading in :{os.getcwd()+data_dir}\n')
+    LOGGER.info("\nDownloading in :%s\n", os.getcwd()+data_dir)
 
 
     
@@ -671,7 +662,7 @@ def load_dataset(args):
     elif args.dataset in ['mnist','fmnist']:
         normalize = transforms.Normalize((0.5), (0.5))
     else:
-        print(f"Unknown dataset {args.dataset}")
+        LOGGER.warning("Unknown dataset %s", args.dataset)
 
     
     

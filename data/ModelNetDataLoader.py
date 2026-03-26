@@ -4,9 +4,12 @@
 @time: 2021/3/19 15:51
 '''
 import os
+import logging
 import numpy as np
 import warnings
 import pickle
+
+LOGGER = logging.getLogger(__name__)
 
 from tqdm import tqdm
 from torch.utils.data import Dataset
@@ -75,7 +78,7 @@ class ModelNetDataset(Dataset):
         shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
         self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt') for i
                          in range(len(shape_ids[split]))]
-        print('The size of %s data is %d' % (split, len(self.datapath)))
+        LOGGER.info("The size of %s data is %d", split, len(self.datapath))
 
         if self.uniform:
             self.save_path = os.path.join(root, 'modelnet%d_%s_%dpts_fps.dat' % (self.num_category, split, self.npoints))
@@ -84,7 +87,7 @@ class ModelNetDataset(Dataset):
 
         if self.process_data:
             if not os.path.exists(self.save_path):
-                print('Processing data %s (only running in the first time)...' % self.save_path)
+                LOGGER.info("Processing data %s (only running in the first time)...", self.save_path)
                 self.list_of_points = [None] * len(self.datapath)
                 self.list_of_labels = [None] * len(self.datapath)
 
@@ -105,7 +108,7 @@ class ModelNetDataset(Dataset):
                 with open(self.save_path, 'wb') as f:
                     pickle.dump([self.list_of_points, self.list_of_labels], f)
             else:
-                print('Load processed data from %s...' % self.save_path)
+                LOGGER.info("Load processed data from %s...", self.save_path)
                 with open(self.save_path, 'rb') as f:
                     self.list_of_points, self.list_of_labels = pickle.load(f)
 
@@ -142,6 +145,6 @@ if __name__ == '__main__':
     data = ModelNetDataset('../data/modelnet/', split='train')
     DataLoader = torch.utils.data.DataLoader(data, batch_size=12, shuffle=True)
     for point, label in DataLoader:
-        print(point.shape)
-        print(label.shape)
+        LOGGER.debug("point shape: %s", point.shape)
+        LOGGER.debug("label shape: %s", label.shape)
 

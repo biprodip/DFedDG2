@@ -21,50 +21,41 @@ import logging
 import os
 import pickle
 import random
-import sys
-from pathlib import Path
-from typing import Any
-
 import numpy as np
 import torch
 import torch.nn as nn
 
-from models.model_manager import *
-
-from comm_utils.topology_manager import *
-from comm_utils.decentralized import *
-from comm_utils.comm_decood import *
-from comm_utils.comm_vmf_gossip import *
-from comm_utils.comm_gossip import *
-from comm_utils.mst import *
-from client_manager import *
-from utils import *
-from comm_mst import *
-
-# Add local lib folder to path
-lib_dir = (Path(__file__).parent / "lib").resolve()
-if str(lib_dir) not in sys.path:
-    sys.path.insert(0, str(lib_dir))
-
-from lib.pcl_utils import *  # noqa: E402  (import after sys.path manipulation)
+from models.model_manager import get_model
+from models.models import BaseHeadSplit
+from comm_utils.topology_manager import topology_manager, update_adjacency_matrix
+from comm_utils.decentralized import get_mixing_matrix
+from comm_utils.comm_vmf_gossip import comm_vmf_gossip
+from client_manager import get_clients
+from lib.pcl_utils import (
+    prepare_data_digits,
+    prepare_data_digits_noniid,
+    prepare_data_office,
+    prepare_data_office_noniid,
+    prepare_data_domainnet,
+    prepare_data_domainnet_noniid,
+    prepare_data_mnistm_noniid,
+    prepare_data_caltech_noniid,
+    prepare_data_real_noniid,
+)
 
 LOGGER = logging.getLogger(__name__)
-DEFAULT_SEED = 1234
 
 
-def seed_worker(worker_id: int) -> None:
-    """
-    Seed worker processes for DataLoader to ensure reproducibility.
+def _str_to_bool(v: str) -> bool:
+    """Convert a string argument to bool for argparse."""
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("true", "1", "yes"):
+        return True
+    if v.lower() in ("false", "0", "no"):
+        return False
+    raise argparse.ArgumentTypeError(f"Boolean value expected, got '{v}'")
 
-    Parameters
-    ----------
-    worker_id : int
-        Worker id passed from DataLoader.
-    """
-    # Make worker seed depend on worker_id but deterministic across runs.
-    base_seed = DEFAULT_SEED
-    np.random.seed(base_seed + worker_id)
-    random.seed(base_seed + worker_id)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -73,7 +64,6 @@ def parse_arguments() -> argparse.Namespace:
 
     # General model specific
     parser.add_argument("--seed", type=int, default=1234, help="Random seed")
-    parser.add_argument("--global_seed", default=1234, type=int, help="Global seed")
     parser.add_argument(
         "--algorithm",
         default="FedProto",
@@ -114,7 +104,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--test_on_cosine",
         default=False,
-        type=bool,
+        type=_str_to_bool,
         help="Use cosine-based performance testing (otherwise MSE)",
     )
     parser.add_argument(
@@ -131,7 +121,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--no_cuda",
         default=False,
-        type=bool,
+        type=_str_to_bool,
         help="Whether to disable CUDA even if available",
     )
     parser.add_argument(
@@ -159,7 +149,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--normalize",
         default=True,
-        type=bool,
+        type=_str_to_bool,
         help="Whether to L2-normalize features",
     )
     parser.add_argument(
@@ -177,7 +167,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--use_imb_loss",
         default=True,
-        type=bool,
+        type=_str_to_bool,
         help="Use imbalance loss instead of standard cross entropy",
     )
 
@@ -244,32 +234,6 @@ def parse_arguments() -> argparse.Namespace:
         help="Use uniform sampling for PC",
     )
 
-    # OOD
-    parser.add_argument("--ood_dataset", default="svhn", help="OOD dataset name")
-    parser.add_argument(
-        "--ood_train_method",
-        default="OE",
-        help="OOD training method: energy/OE",
-    )
-    parser.add_argument(
-        "--proto_bs_id", default=5, type=int, help="Proto batch size for in-distribution"
-    )
-    parser.add_argument(
-        "--proto_bs_ood", default=5, type=int, help="Proto batch size for OOD"
-    )
-    parser.add_argument(
-        "--ood_header_epoch",
-        default=100,
-        type=int,
-        help="OOD header epoch (FedGH Proto)",
-    )
-    parser.add_argument(
-        "--id_header_epoch",
-        default=1,
-        type=int,
-        help="ID header epoch (FedGH Proto)",
-    )
-
     # Clustering and Penz params
     parser.add_argument(
         "--clustering",
@@ -294,14 +258,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--isDFL",
         default=True,
-        type=bool,
+        type=_str_to_bool,
         help="Whether decentralized federated learning (DFL)",
-    )
-    parser.add_argument(
-        "--clustered_agg",
-        default=False,
-        type=bool,
-        help="Whether clustered aggregation is used",
     )
     parser.add_argument(
         "--neighbour_selection",
@@ -319,7 +277,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--submod",
         default=False,
-        type=bool,
+        type=_str_to_bool,
         help="Whether to use submodular selection",
     )
     parser.add_argument(
@@ -339,12 +297,6 @@ def parse_arguments() -> argparse.Namespace:
         default=0.0,
         type=float,
         help="Gradient threshold for screening",
-    )
-    parser.add_argument(
-        "--sub_mod_sel_ratio",
-        default=0.7,
-        type=float,
-        help="Sub-modular selection ratio",
     )
     parser.add_argument(
         "--fed_avg_sel",
@@ -423,7 +375,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--sel_on_kappa",
         default=True,
-        type=bool,
+        type=_str_to_bool,
         help="Kappa-based selection of prototypes for aggregation",
     )
 
@@ -432,7 +384,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--is_bayes",
         default=False,
-        type=bool,
+        type=_str_to_bool,
         help="Whether Bayesian modeling is used",
     )
     parser.add_argument(
@@ -440,18 +392,6 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mu", default=0.75, type=float, help="Mu parameter for FedProx-like methods"
-    )
-    parser.add_argument(
-        "--m_in",
-        default=-25,
-        type=int,
-        help="M_in parameter (e.g., for energy-based OOD)",
-    )
-    parser.add_argument(
-        "--m_out",
-        default=-7,
-        type=int,
-        help="M_out parameter (e.g., for energy-based OOD)",
     )
 
     # FedPCL arguments
@@ -540,55 +480,18 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     args = parser.parse_args()
+    args.global_seed = args.seed  # keep global_seed in sync; do not pass --global_seed separately
     return args
 
 
-def generate_filename(args: argparse.Namespace) -> str:
-    """
-    Generate a filename based on dataset, feature IID, and label IID settings.
 
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Parsed command-line arguments.
-
-    Returns
-    -------
-    str
-        Path to a .pkl file under data/.
-    """
-    feature_label_pattern = (
-        f"feature_{'iid' if args.feature_iid else 'non_iid'}_"
-        f"label_{'iid' if args.label_iid else 'non_iid'}_{args.dataset}.pkl"
-    )
-    filepath = os.path.join("data", feature_label_pattern)
-    return filepath
-
-
-def load_data(filename: str) -> Any:
-    """
-    Load the dataset and user-group data from a file.
-
-    Parameters
-    ----------
-    filename : str
-        Path to a pickle file.
-
-    Returns
-    -------
-    Any
-        Unpickled content of the file.
-    """
-    with open(filename, "rb") as f:
-        return pickle.load(f)
-
-
-def main() -> int:
+def main() -> None:
     """Main entry point for running decentralized FL experiments."""
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+        format="%(asctime)s | %(name)s | %(message)s",
+        force=True,
     )
 
     args = parse_arguments()
@@ -605,28 +508,6 @@ def main() -> int:
         device_str = "cuda" if use_cuda else "cpu"
     args.device = torch.device(device_str)
 
-    # DataLoader worker generator
-    g = torch.Generator()
-    g.manual_seed(0)
-
-    train_kwargs = {
-        "batch_size": args.local_bs,
-        "num_workers": 1,
-        "worker_init_fn": seed_worker,
-        "generator": g,
-    }
-    test_kwargs = {
-        "batch_size": args.test_bs,
-        "num_workers": 1,
-        "worker_init_fn": seed_worker,
-        "generator": g,
-    }
-
-    if use_cuda:
-        cuda_kwargs = {"num_workers": 1, "pin_memory": True, "shuffle": False}
-        train_kwargs.update(cuda_kwargs)
-        test_kwargs.update(cuda_kwargs)
-
     # Set global seeds
     LOGGER.info("Training on device: %s", args.device)
     if args.device.type == "cuda":
@@ -640,6 +521,8 @@ def main() -> int:
     np.random.seed(args.seed)
     random.seed(args.seed)
 
+
+
     # Build topology / mixing matrix
     LOGGER.info("Topology type: %s", args.topo)
     if args.topo in ("ring", "fc"):
@@ -652,35 +535,39 @@ def main() -> int:
 
     LOGGER.debug("Adjacency / mixing matrix:\n%s", adj_mat)
 
+
+
     # Model and head split
     args.model, args.feat_dim = get_model(args)
     LOGGER.info("Using feature dim: %s", args.feat_dim)
+    LOGGER.info("Backbone: %s", args.backbone)
 
     if args.algorithm != "DisPFL":
+        backbone = args.model
         if args.backbone == "mobilenet":
-            # MobileNet default feature dimension
-            args.head = copy.deepcopy(args.model.classifier)
-            args.model.classifier = nn.Identity()
+            head = copy.deepcopy(backbone.classifier)
+            backbone.classifier = nn.Identity()
         elif args.backbone == "mobilenet_proj":
-            # MobileNet with custom projection dimension
-            args.head = copy.deepcopy(args.model.classifier[-1])
-            args.model.classifier[-1] = nn.Identity()
+            head = copy.deepcopy(backbone.classifier[-1])
+            backbone.classifier[-1] = nn.Identity()
         elif args.backbone in ("CNNMnist", "resnet18_proj", "resnet34_proj"):
-            args.head = copy.deepcopy(args.model.fc[-1])
-            args.model.fc[-1] = nn.Identity()
+            head = copy.deepcopy(backbone.fc[-1])
+            backbone.fc[-1] = nn.Identity()
         else:
             LOGGER.warning("Backbone model name '%s' unrecognized!", args.backbone)
+            head = None
 
-        args.model = BaseHeadSplit(args.model, args.head)
+        args.model = BaseHeadSplit(backbone, head)
 
     LOGGER.info(
-        "\nAlgorithm: %s\nDataset: %s\nDist: %s\nCommunication: %s\nRounds: %d\n",
+        "Algorithm: %s | Dataset: %s | Dist: %s | Communication: %s | Rounds: %d\n",
         args.algorithm,
         args.dataset,
         args.dist,
         args.comm,
         args.num_rounds,
     )
+
 
     # Acc matrices over trials
     acc_mtx = torch.zeros([args.num_trials, args.num_clients])
@@ -790,15 +677,17 @@ def main() -> int:
                 f"label_iid={args.label_iid}, dist='{args.dist}'."
             )
 
+
         test_loader = None  # Global test loader (unused in current code path)
+
+
 
         # Create clients
         clients = []
-        client_id = 0
         for i in range(args.num_clients):
             client = get_clients(
                 args.algorithm,
-                client_id,
+                i,
                 args,
                 adj_mat,
                 train_dataset_list[i],
@@ -808,43 +697,42 @@ def main() -> int:
                 0,
             )
             clients.append(client)
-            client_id += 1
 
-        # Adjust adjacency matrix weights proportional to local sample counts if enabled
+
+
+        # Adjust adjacency matrix weights proportional to local data sample counts if enabled
         if args.weighted_adj_mat:
-            LOGGER.info("Updating adjacency matrix with local sample count weights.")
+            LOGGER.info("Updating adjacency matrix with local data sample count weights.")
             adj_mat = update_adjacency_matrix(
                 adj_mat, clients, args.num_classes, alpha=None
             )
 
+
+
         # Communication / training
-        if args.comm == "comm_mst":
-            (
-                avg_l_acc_hist,
-                avg_g_acc,
-                avg_l_auc,
-                avg_g_auc,
-                avg_l_unc,
-                avg_g_unc,
-            ) = comm_mst(args, adj_mat, clients, debug=False, test_loader=test_loader)
-        elif args.comm == "comm_vmf_gossip":
+        avg_l_acc_hist = []
+        if args.comm == "comm_vmf_gossip":
             LOGGER.info("Using vMF gossip communication.")
             avg_l_acc_hist = comm_vmf_gossip(
-                args, adj_mat, clients, debug=False, test_loader=test_loader
+                args, 
+                adj_mat, 
+                clients, 
+                debug=False, 
+                test_loader=test_loader
             )
         else:
-            # Keep behavior identical: if other comm methods are implemented elsewhere,
-            # they should be triggered by args.comm via imported utilities.
-            LOGGER.warning(
-                "Communication method '%s' is not explicitly handled here. "
-                "Make sure it is implemented in imported modules.",
-                args.comm,
+            raise ValueError(
+                f"Communication method '{args.comm}' is not supported. "
+                "Choose from: comm_vmf_gossip"
             )
-            # You might have other comm_* functions that are called elsewhere.
+
+
 
         # Trial-specific evaluation and saving
         aggregated_trial_test_acc = 0.0
         total_test_samples = 0
+
+
 
         for c in clients:
             # Save client performance for this trial
@@ -869,8 +757,7 @@ def main() -> int:
                     pickle.dump(
                         [c.local_protos, c.global_protos, c.l_test_acc_hist], f
                     )
-
-        LOGGER.info("Client performance saved to: %s", filename)
+            LOGGER.info("Client performance saved to: %s", filename)
 
         aggregated_trial_test_acc /= total_test_samples
         global_test_acc_mtx[trial] = aggregated_trial_test_acc
@@ -895,8 +782,6 @@ def main() -> int:
     for cl in clients:
         cl.performance_test(data_loader=None, saveFlag=1)
 
-    LOGGER.info("Counting parameters of first client model...")
-    count_params(clients[0], args.comm)
 
     # Save acc_mtx across trials
     acc_mtx_filename = os.path.join(
@@ -932,9 +817,7 @@ def main() -> int:
         acc_mtx[args.num_trials - 1, :],
     )
 
-    acc_avg = torch.zeros([args.num_trials])
-    for i in range(args.num_trials):
-        acc_avg[i] = torch.mean(acc_mtx[i, :])
+    acc_avg = acc_mtx.mean(dim=1)
 
     LOGGER.info(
         "The avg test accuracy (unweighted) of all clients over all trials: %.2f ± %.2f",
@@ -952,9 +835,8 @@ def main() -> int:
         std_global_test_acc,
     )
 
-    return 0
+    LOGGER.info("Experiment complete.")
 
 
 if __name__ == "__main__":
-    ret = main()
-    print("Execution finished with code:", ret)
+    main()

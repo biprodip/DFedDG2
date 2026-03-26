@@ -1,0 +1,133 @@
+2026-03-26 23:05:18,057 | __main__ | Training on device: cuda
+2026-03-26 23:05:18,109 | __main__ | Topology type: dynamic
+2026-03-26 23:05:18,109 | __main__ | Using Erdos-Renyi graph for adjacency / mixing matrix
+2026-03-26 23:05:18,169 | __main__ | Using feature dim: 512
+2026-03-26 23:05:18,169 | __main__ | Backbone: mobilenet_proj
+2026-03-26 23:05:18,169 | __main__ | Algorithm: DecoodVMF | Dataset: office | Dist: dir | Communication: comm_vmf_gossip | Rounds: 4
+
+2026-03-26 23:05:18,169 | __main__ | Starting trial 1 / 2
+2026-03-26 23:05:18,173 | clients.client_decood_vmf | Cluster: 0
+2026-03-26 23:05:18,345 | clients.client_decood_vmf | Client id: 0, Train dist: tensor([12.,  9., 10., 11.,  3.,  0., 15.,  4., 13., 21.])
+2026-03-26 23:05:18,416 | clients.client_decood_vmf | Client id: 0, Test dist: tensor([13.,  4.,  6., 12.,  3.,  0., 20.,  3., 13., 24.])
+2026-03-26 23:05:18,416 | clients.client_decood_vmf | Client data count: Train: 98 Test: 98
+2026-03-26 23:05:18,788 | clients.client_decood_vmf | Cluster: 0
+2026-03-26 23:05:18,887 | clients.client_decood_vmf | Client id: 1, Train dist: tensor([11.,  6.,  9., 31.,  9., 14.,  3.,  1., 17.,  1.])
+2026-03-26 23:05:18,979 | clients.client_decood_vmf | Client id: 1, Test dist: tensor([ 8., 12., 12., 24., 13., 12.,  9.,  3.,  9.,  1.])
+2026-03-26 23:05:18,979 | clients.client_decood_vmf | Client data count: Train: 102 Test: 103
+2026-03-26 23:05:19,160 | clients.client_decood_vmf | Cluster: 0
+2026-03-26 23:05:19,288 | clients.client_decood_vmf | Client id: 2, Train dist: tensor([34.,  8., 12.,  6., 11., 19.,  4.,  5.,  9., 16.])
+2026-03-26 23:05:19,385 | clients.client_decood_vmf | Client id: 2, Test dist: tensor([38., 13.,  7.,  7., 11., 17.,  2.,  6.,  9., 15.])
+2026-03-26 23:05:19,385 | clients.client_decood_vmf | Client data count: Train: 124 Test: 125
+2026-03-26 23:05:19,608 | clients.client_decood_vmf | Cluster: 0
+2026-03-26 23:05:19,731 | clients.client_decood_vmf | Client id: 3, Train dist: tensor([ 2., 19.,  9., 12.,  7., 20., 26., 28.,  0.,  0.])
+2026-03-26 23:05:19,834 | clients.client_decood_vmf | Client id: 3, Test dist: tensor([ 2., 17., 15.,  7., 11., 20., 27., 25.,  0.,  0.])
+2026-03-26 23:05:19,834 | clients.client_decood_vmf | Client data count: Train: 123 Test: 124
+2026-03-26 23:05:20,047 | __main__ | Updating adjacency matrix with local data sample count weights.
+2026-03-26 23:05:20,047 | comm_utils.topology_manager | Total clients: 4
+2026-03-26 23:05:20,050 | __main__ | Using vMF gossip communication.
+2026-03-26 23:05:20,050 | comm_utils.comm_vmf_gossip | Round 00
+2026-03-26 23:05:22,167 | utils.utils_proto | Client id: 0, Test Lacc: 0.00
+2026-03-26 23:05:22,551 | utils.utils_proto | Client id: 1, Test Lacc: 0.50
+2026-03-26 23:05:22,993 | utils.utils_proto | Client id: 2, Test Lacc: 0.41
+2026-03-26 23:05:23,387 | utils.utils_proto | Client id: 3, Test Lacc: 0.00
+2026-03-26 23:05:23,387 | comm_utils.comm_vmf_gossip | Avg test-ACC: 0.2282
+2026-03-26 23:05:23,387 | comm_utils.comm_vmf_gossip | Mean local time: 0.3133 s
+2026-03-26 23:05:23,387 | comm_utils.comm_vmf_gossip | Mean gossip time: 0.0056 s
+2026-03-26 23:05:23,387 | comm_utils.comm_vmf_gossip | Round 01
+2026-03-26 23:05:25,411 | utils.utils_proto | Client id: 0, Test Lacc: 0.47
+2026-03-26 23:05:25,738 | utils.utils_proto | Client id: 1, Test Lacc: 0.56
+2026-03-26 23:05:26,166 | utils.utils_proto | Client id: 2, Test Lacc: 0.62
+2026-03-26 23:05:26,517 | utils.utils_proto | Client id: 3, Test Lacc: 0.55
+2026-03-26 23:05:26,517 | comm_utils.comm_vmf_gossip | Avg test-ACC: 0.5512
+2026-03-26 23:05:26,517 | comm_utils.comm_vmf_gossip | Mean local time: 0.2893 s
+2026-03-26 23:05:26,517 | comm_utils.comm_vmf_gossip | Mean gossip time: 0.0047 s
+2026-03-26 23:05:26,517 | comm_utils.comm_vmf_gossip | Round 02
+2026-03-26 23:05:27,932 | utils.utils_proto | Client id: 0, Test Lacc: 0.52
+2026-03-26 23:05:28,295 | utils.utils_proto | Client id: 1, Test Lacc: 0.55
+2026-03-26 23:05:28,705 | utils.utils_proto | Client id: 2, Test Lacc: 0.70
+2026-03-26 23:05:29,120 | utils.utils_proto | Client id: 3, Test Lacc: 0.60
+2026-03-26 23:05:29,120 | comm_utils.comm_vmf_gossip | Avg test-ACC: 0.5916
+2026-03-26 23:05:29,120 | comm_utils.comm_vmf_gossip | Mean local time: 0.2789 s
+2026-03-26 23:05:29,120 | comm_utils.comm_vmf_gossip | Mean gossip time: 0.0045 s
+2026-03-26 23:05:29,120 | comm_utils.comm_vmf_gossip | Round 03
+2026-03-26 23:05:31,136 | utils.utils_proto | Client id: 0, Test Lacc: 0.69
+2026-03-26 23:05:31,490 | utils.utils_proto | Client id: 1, Test Lacc: 0.57
+2026-03-26 23:05:31,861 | utils.utils_proto | Client id: 2, Test Lacc: 0.74
+2026-03-26 23:05:32,215 | utils.utils_proto | Client id: 3, Test Lacc: 0.77
+2026-03-26 23:05:32,215 | comm_utils.comm_vmf_gossip | Avg test-ACC: 0.6922
+2026-03-26 23:05:32,215 | comm_utils.comm_vmf_gossip | Mean local time: 0.2763 s
+2026-03-26 23:05:32,215 | comm_utils.comm_vmf_gossip | Mean gossip time: 0.0042 s
+2026-03-26 23:05:32,215 | __main__ | Client performance saved to: params/id_loaders_DecoodVMF_office_comm_vmf_gossip_client_0.pkl
+2026-03-26 23:05:32,219 | __main__ | Client performance saved to: params/id_loaders_DecoodVMF_office_comm_vmf_gossip_client_1.pkl
+2026-03-26 23:05:32,221 | __main__ | Client performance saved to: params/id_loaders_DecoodVMF_office_comm_vmf_gossip_client_2.pkl
+2026-03-26 23:05:32,225 | __main__ | Client performance saved to: params/id_loaders_DecoodVMF_office_comm_vmf_gossip_client_3.pkl
+2026-03-26 23:05:32,225 | __main__ | Starting trial 2 / 2
+2026-03-26 23:05:32,229 | clients.client_decood_vmf | Cluster: 0
+2026-03-26 23:05:32,348 | clients.client_decood_vmf | Client id: 0, Train dist: tensor([12., 17., 12., 10.,  3., 26., 15., 17.,  0.,  0.])
+2026-03-26 23:05:32,443 | clients.client_decood_vmf | Client id: 0, Test dist: tensor([ 9., 31.,  8.,  9.,  7., 23.,  7., 19.,  0.,  0.])
+2026-03-26 23:05:32,443 | clients.client_decood_vmf | Client data count: Train: 112 Test: 113
+2026-03-26 23:05:32,666 | clients.client_decood_vmf | Cluster: 0
+2026-03-26 23:05:32,791 | clients.client_decood_vmf | Client id: 1, Train dist: tensor([39.,  1., 10., 20., 12., 10., 38.,  0.,  0.,  0.])
+2026-03-26 23:05:32,887 | clients.client_decood_vmf | Client id: 1, Test dist: tensor([39.,  0., 18., 19., 14.,  9., 32.,  0.,  0.,  0.])
+2026-03-26 23:05:32,887 | clients.client_decood_vmf | Client data count: Train: 130 Test: 131
+2026-03-26 23:05:33,116 | clients.client_decood_vmf | Cluster: 0
+2026-03-26 23:05:33,238 | clients.client_decood_vmf | Client id: 2, Train dist: tensor([ 9.,  6.,  6., 23., 18.,  1.,  2.,  7., 18., 26.])
+2026-03-26 23:05:33,336 | clients.client_decood_vmf | Client id: 2, Test dist: tensor([ 9.,  3., 19., 19., 12.,  2.,  3.,  8., 16., 25.])
+2026-03-26 23:05:33,336 | clients.client_decood_vmf | Client data count: Train: 116 Test: 116
+2026-03-26 23:05:33,574 | clients.client_decood_vmf | Cluster: 0
+2026-03-26 23:05:33,681 | clients.client_decood_vmf | Client id: 3, Train dist: tensor([ 2.,  8.,  2.,  8.,  1., 18.,  7.,  9., 21., 13.])
+2026-03-26 23:05:33,751 | clients.client_decood_vmf | Client id: 3, Test dist: tensor([ 1., 22.,  5.,  2.,  1., 13.,  2., 15., 15., 14.])
+2026-03-26 23:05:33,751 | clients.client_decood_vmf | Client data count: Train: 89 Test: 90
+2026-03-26 23:05:33,973 | __main__ | Updating adjacency matrix with local data sample count weights.
+2026-03-26 23:05:33,973 | comm_utils.topology_manager | Total clients: 4
+2026-03-26 23:05:33,978 | __main__ | Using vMF gossip communication.
+2026-03-26 23:05:33,978 | comm_utils.comm_vmf_gossip | Round 00
+2026-03-26 23:05:36,148 | utils.utils_proto | Client id: 0, Test Lacc: 0.00
+2026-03-26 23:05:36,484 | utils.utils_proto | Client id: 1, Test Lacc: 0.00
+2026-03-26 23:05:36,807 | utils.utils_proto | Client id: 2, Test Lacc: 0.45
+2026-03-26 23:05:37,092 | utils.utils_proto | Client id: 3, Test Lacc: 0.52
+2026-03-26 23:05:37,092 | comm_utils.comm_vmf_gossip | Avg test-ACC: 0.2426
+2026-03-26 23:05:37,092 | comm_utils.comm_vmf_gossip | Mean local time: 0.2986 s
+2026-03-26 23:05:37,092 | comm_utils.comm_vmf_gossip | Mean gossip time: 0.0028 s
+2026-03-26 23:05:37,092 | comm_utils.comm_vmf_gossip | Round 01
+2026-03-26 23:05:39,166 | utils.utils_proto | Client id: 0, Test Lacc: 0.67
+2026-03-26 23:05:39,560 | utils.utils_proto | Client id: 1, Test Lacc: 0.53
+2026-03-26 23:05:39,908 | utils.utils_proto | Client id: 2, Test Lacc: 0.51
+2026-03-26 23:05:40,197 | utils.utils_proto | Client id: 3, Test Lacc: 0.39
+2026-03-26 23:05:40,197 | comm_utils.comm_vmf_gossip | Avg test-ACC: 0.5261
+2026-03-26 23:05:40,197 | comm_utils.comm_vmf_gossip | Mean local time: 0.2891 s
+2026-03-26 23:05:40,197 | comm_utils.comm_vmf_gossip | Mean gossip time: 0.0033 s
+2026-03-26 23:05:40,197 | comm_utils.comm_vmf_gossip | Round 02
+2026-03-26 23:05:41,572 | utils.utils_proto | Client id: 0, Test Lacc: 0.67
+2026-03-26 23:05:42,028 | utils.utils_proto | Client id: 1, Test Lacc: 0.40
+2026-03-26 23:05:42,575 | utils.utils_proto | Client id: 2, Test Lacc: 0.49
+2026-03-26 23:05:42,995 | utils.utils_proto | Client id: 3, Test Lacc: 0.53
+2026-03-26 23:05:42,995 | comm_utils.comm_vmf_gossip | Avg test-ACC: 0.5236
+2026-03-26 23:05:42,995 | comm_utils.comm_vmf_gossip | Mean local time: 0.2837 s
+2026-03-26 23:05:42,995 | comm_utils.comm_vmf_gossip | Mean gossip time: 0.0030 s
+2026-03-26 23:05:42,995 | comm_utils.comm_vmf_gossip | Round 03
+2026-03-26 23:05:46,858 | utils.utils_proto | Client id: 0, Test Lacc: 0.77
+2026-03-26 23:05:47,595 | utils.utils_proto | Client id: 1, Test Lacc: 0.65
+2026-03-26 23:05:48,268 | utils.utils_proto | Client id: 2, Test Lacc: 0.63
+2026-03-26 23:05:48,727 | utils.utils_proto | Client id: 3, Test Lacc: 0.58
+2026-03-26 23:05:48,727 | comm_utils.comm_vmf_gossip | Avg test-ACC: 0.6565
+2026-03-26 23:05:48,727 | comm_utils.comm_vmf_gossip | Mean local time: 0.3395 s
+2026-03-26 23:05:48,727 | comm_utils.comm_vmf_gossip | Mean gossip time: 0.0032 s
+2026-03-26 23:05:48,735 | __main__ | Client performance saved to: params/id_loaders_DecoodVMF_office_comm_vmf_gossip_client_0.pkl
+2026-03-26 23:05:48,739 | __main__ | Client performance saved to: params/id_loaders_DecoodVMF_office_comm_vmf_gossip_client_1.pkl
+2026-03-26 23:05:48,743 | __main__ | Client performance saved to: params/id_loaders_DecoodVMF_office_comm_vmf_gossip_client_2.pkl
+2026-03-26 23:05:48,748 | __main__ | Client performance saved to: params/id_loaders_DecoodVMF_office_comm_vmf_gossip_client_3.pkl
+2026-03-26 23:05:49,306 | clients.client_decood_vmf | Predictions and uncertainties saved to logs/experiments/predictions_uncertainties_client_0.json
+2026-03-26 23:05:49,306 | clients.client_decood_vmf | Saved uncertainties of client 0
+2026-03-26 23:05:49,997 | clients.client_decood_vmf | Predictions and uncertainties saved to logs/experiments/predictions_uncertainties_client_1.json
+2026-03-26 23:05:49,997 | clients.client_decood_vmf | Saved uncertainties of client 1
+2026-03-26 23:05:50,661 | clients.client_decood_vmf | Predictions and uncertainties saved to logs/experiments/predictions_uncertainties_client_2.json
+2026-03-26 23:05:50,661 | clients.client_decood_vmf | Saved uncertainties of client 2
+2026-03-26 23:05:51,139 | clients.client_decood_vmf | Predictions and uncertainties saved to logs/experiments/predictions_uncertainties_client_3.json
+2026-03-26 23:05:51,139 | clients.client_decood_vmf | Saved uncertainties of client 3
+2026-03-26 23:05:51,140 | __main__ | Individual mean accuracy of each client (over all trials): tensor([0.7319, 0.6108, 0.6827, 0.6720])
+2026-03-26 23:05:51,140 | __main__ | Individual std accuracy of each client (over all trials): tensor([0.0538, 0.0538, 0.0754, 0.1332])
+2026-03-26 23:05:51,143 | __main__ | The unweighted test accuracy of all clients in final trial: tensor([0.7699, 0.6489, 0.6293, 0.5778])
+2026-03-26 23:05:51,143 | __main__ | The avg test accuracy (unweighted) of all clients over all trials: 0.67 ▒ 0.03
+2026-03-26 23:05:51,144 | __main__ | The avg test accuracy (weighted by client test sample size) over all trials: 0.68 ▒ 0.03
+2026-03-26 23:05:51,144 | __main__ | Experiment complete.

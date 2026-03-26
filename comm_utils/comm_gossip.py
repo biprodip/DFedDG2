@@ -1,48 +1,21 @@
-"""comm_gossip.py — Model-weight gossip communication for decentralised FL.
-
-This module implements the standard (non-vMF) gossip training loop.  Unlike
-comm_vmf_gossip, neighbour weights are determined by the static or dynamic
-adjacency matrix rather than vMF likelihood scores, and *model parameters* are
-exchanged (not just prototypes).
-
-Key functions
--------------
-make_doubly_stochastic : Sinkhorn-style balancing of a mixing matrix (tensor).
-comm_gossip            : Main round loop — local update + weighted model average.
-
-Internal helper
----------------
-update_clients (nested) : thin wrapper used to print client ID before update().
-"""
-
+import logging
 from utils.utils_proto import *
 from collections import defaultdict
 import json
 import time
 import random
 import numpy as np
+# from proco_utils import neighbor_gossip_weights
 import torch.nn.functional as F
+# from proco.proco import miller_recurrence      # already in ProCo repo
+# from scipy.special import ive
 from comm_utils.decentralized import *
+
+LOGGER = logging.getLogger(__name__)
 
 
 def make_doubly_stochastic(W, iters=5, eps=1e-12):
-    """Iteratively balance a mixing matrix so both rows and columns sum to 1.
-
-    Applies alternating column-normalisation then row-normalisation (Sinkhorn
-    iterations).  Starting from a row-stochastic matrix (rows already sum to 1),
-    ``iters`` passes are usually sufficient for small graphs (N ≤ 20).
-
-    Args:
-        W: [N, N] torch.Tensor that is at least approximately row-stochastic.
-            Modified **in-place**.
-        iters: Number of alternating normalisation passes (default: 5).
-        eps: Small constant clamped to the divisor to prevent division by zero
-            when a column or row sum is effectively zero (default: 1e-12).
-
-    Returns:
-        torch.Tensor: The balanced (doubly stochastic) matrix W (same object,
-            modified in-place).
-    """
+    # W: [N,N] row-stochastic (rows already sum to 1)
     for _ in range(iters):
         col_sum = W.sum(0, keepdim=True).clamp_min(eps)
         W /= col_sum                       # make columns sum to 1
@@ -53,45 +26,14 @@ def make_doubly_stochastic(W, iters=5, eps=1e-12):
 
 
 def comm_gossip(args, adj, clients, debug=False, test_loader=None):
-    """Main training loop for the standard (model-weight) gossip algorithm.
+    '''
+    For a client i, Aggregates(FedAvg) all clients j if j is adjacent to i and (i!=j)
+    based on the adjacency matrics adj. 
 
-    Each round proceeds in three phases:
-
-    1. **Dynamic topology** (optional) — if ``args.dynamic_topo == 1``, a new
-       Erdős–Rényi random graph is sampled (p=0.5) and its adjacency matrix is
-       doubly-stochastic balanced via ``make_doubly_stochastic``.
-
-    2. **Local update** — every client runs one local training epoch
-       (``client.update()``).
-
-    3. **Weighted model average** — for each client *i*, its new model
-       parameters are computed as:
-           W_new[i] = adj[i][i] * W[i]  +  Σ_{j∈neighbours} adj[i][j] * W[j]
-       where ``adj`` is the (possibly updated) mixing matrix.  The result is
-       loaded back via ``client.avg_model``.
-
-    Timing is recorded per-round for both local training and gossip phases.
-
-    Args:
-        args: Experiment configuration namespace.  Relevant fields:
-            ``num_rounds``, ``global_seed``, ``num_clients``, ``dynamic_topo``.
-        adj: [N × N] float tensor mixing matrix.  ``adj[i][j]`` is the weight
-            client *i* gives to client *j*'s model.  Updated in-place when
-            ``dynamic_topo == 1``.
-        clients: List of client objects (one per federated node).
-        debug: Unused; reserved for future verbose logging.
-        test_loader: Unused in this function; each client evaluates on its own
-            local test loader via ``evaluate_clients``.
-
-    Returns:
-        list[float]: Per-round average local test accuracy across all clients.
-
-    Side effects:
-        Loads new model state dicts into each client via ``client.avg_model``
-        each round.  Prints per-round timing statistics.
-    """
+    Not random gossip (where adjacents are randomly selected).
+    '''
         
-    print('Gossip training.')
+    LOGGER.info("Gossip training.")
     # torch.manual_seed(args.global_seed)
     random.seed(args.global_seed)
     np.random.seed(args.global_seed)
@@ -112,13 +54,13 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
     client_heat = np.zeros([args.num_clients,args.num_clients])
     
     def update_clients(c):
-       print(f"Updating client {c.id}")
+       LOGGER.info("Updating client %s", c.id)
        c.update()
     
     local_times, gossip_times = [], []
     for e in range(args.num_rounds):
 
-        print(f'\nRound : {e}')
+        LOGGER.info("\nRound : %s", e)
         # Update each client
 
 
@@ -128,12 +70,12 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
             adj_mat = nx.adjacency_matrix(graph, weight=None).todense()
             adj = torch.from_numpy(np.array(adj_mat)).float().to(clients[0].device)
             adj = make_doubly_stochastic(adj) 
-            print(f'New mixing mat: {adj}')
+            LOGGER.debug("New mixing mat: %s", adj)
 
 
 
         for m in clients:
-            print(f'Updating {m.id}')
+            LOGGER.info("Updating %s", m.id)
             start = time.perf_counter()
             m.update()  # one local epoch
             end = time.perf_counter()
@@ -193,7 +135,7 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
         for i in range(len(clients)):
                 #clients[i].avg_model(new_models[i], Ni[i]) #N[i]: tot neighbors of client i each round
                 clients[i].avg_model(new_models[i], 1) #N[i]: tot neighbors of client i each round
-                print(f'Aggregated client {i}')
+                LOGGER.info("Aggregated client %s", i)
         
         tg1 = time.perf_counter()
         gossip_times.append(tg1 - tg0)        
@@ -201,7 +143,7 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
        #list every round avg performance of all clients (local test data and global test data)
        #lacc, gacc, lauc, gauc, lunc, gunc = evaluate_clients(clients, test_loader)
         lacc = evaluate_clients(clients, test_loader)
-        print(f'Avg ACC:{lacc}')
+        LOGGER.info("Avg ACC: %s", lacc)
         avg_l_acc.append(lacc)
         # avg_g_acc.append(gacc)
         # avg_l_auc.append(lauc)
@@ -218,7 +160,7 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
 
         mean_local  = sum(local_times) / len(local_times)
         mean_gossip = sum(gossip_times) / len(gossip_times) / args.num_rounds  # per round
-        print(f'Mean local time:{mean_local}, Mean gossip time:{mean_gossip}')
+        LOGGER.info("Mean local time: %s, Mean gossip time: %s", mean_local, mean_gossip)
 
 
     # for c in clients:

@@ -1,13 +1,15 @@
-# official training implementation
+import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+LOGGER = logging.getLogger(__name__)
 from models.model_utils import PointNetEncoder, feature_transform_reguliarzer
 import torchvision.models as models
-#import torch.optim as optim
-#from torchvision import datasets, transforms
-#from torch.optim.lr_scheduler import StepLR
-# from torchvision.models import MobileNet_V2_Weights
+import torch.nn as nn
+from torch import Tensor
+from typing import Any, Callable, List, Optional
+
 
 class MLP(nn.Module):
     def __init__(self, dim_in, dim_hidden, dim_out):
@@ -31,7 +33,7 @@ class MLP(nn.Module):
 class CNNMnist(nn.Module):
     def __init__(self, in_features=1, num_classes=10, out_channel=64, proj_dim = 512):
         super().__init__()
-        print(f'Using: {out_channel} output channel.')
+        LOGGER.info("Using: %s output channel.", out_channel)
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_features, 32, kernel_size=5, padding=0, stride=1, bias=True),
             nn.ReLU(inplace=True), 
@@ -127,26 +129,6 @@ class CNNFashion_Mnist(nn.Module):
         return out
 
 
-# class CifarNet(nn.Module):
-#     def __init__(self, num_classes=10):
-#         super(CifarNet, self).__init__()
-#         self.conv1 = nn.Conv2d(3, 6, 5) #input channel 3
-#         self.pool = nn.MaxPool2d(2, 2)
-#         self.conv2 = nn.Conv2d(6, 16, 5)
-#         self.fc1 = nn.Linear(16 * 5 * 5, 120)
-#         self.fc2 = nn.Linear(120, 84)      #dimension of embeding 84
-#         self.fc = nn.Linear(84, num_classes)
-
-#     def forward(self, x):
-#         x = self.pool(F.relu(self.conv1(x)))
-#         x = self.pool(F.relu(self.conv2(x)))
-#         x = x.view(-1, 16 * 5 * 5)
-#         x = F.relu(self.fc1(x))
-#         x = F.relu(self.fc2(x))
-#         x = self.fc(x)
-#         #x = F.log_softmax(x, dim=1)
-#         return x
-
 
 #DisPfl
 class CifarNet(nn.Module):
@@ -228,11 +210,7 @@ class BaseHeadSplit(nn.Module):
 
 
 
-import torch.nn as nn
-from torch import Tensor
-from typing import Any, Callable, List, Optional
-
-
+#Resnet implementation
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1) -> nn.Conv2d:
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
@@ -526,44 +504,6 @@ def get_mobilenet(n_classes):
     return model
 
 
-
-
-
-# from model_utils import PointNetEncoder, feature_transform_reguliarzer
-
-# class PointNet(nn.Module):
-#     def __init__(self, k=40, normal_channel=True):
-#         super(PointNet, self).__init__()
-#         if normal_channel:
-#             channel = 6
-#         else:
-#             channel = 3
-#         self.feat = PointNetEncoder(global_feat=True, feature_transform=True, channel=channel)
-#         self.fc1 = nn.Linear(1024, 512)
-#         self.fc2 = nn.Linear(512, 256)
-#         self.fc3 = nn.Linear(256, k)
-#         self.dropout = nn.Dropout(p=0.4)
-#         self.bn1 = nn.BatchNorm1d(512)
-#         self.bn2 = nn.BatchNorm1d(256)
-#         self.relu = nn.ReLU()
-
-
-#     def _get_basemodel(self, model_name):
-#         try:
-#             model = self.model_dict[model_name]
-#             #print("Feature extractor:", model_name)
-#             return model
-#         except:
-#             raise ("Invalid model name. Check the config file and pass one of: resnet18 or resnet50")
-
-
-#     def forward(self, x):
-#         x, trans, trans_feat = self.feat(x)
-#         x = F.relu(self.bn1(self.fc1(x)))
-#         x = F.relu(self.bn2(self.dropout(self.fc2(x))))
-#         x = self.fc3(x)
-#         x = F.log_softmax(x, dim=1)
-#         return x, trans_feat
 
 
 

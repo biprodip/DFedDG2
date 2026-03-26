@@ -1,10 +1,13 @@
 # *_*coding:utf-8 *_*
 import os
 import json
+import logging
 import warnings
 import numpy as np
 from torch.utils.data import Dataset
 warnings.filterwarnings('ignore')
+
+LOGGER = logging.getLogger(__name__)
 
 def pc_normalize(pc):
     centroid = np.mean(pc, axis=0)
@@ -55,7 +58,7 @@ class PartNormalDataset(Dataset):
             elif split == 'test':
                 fns = [fn for fn in fns if fn[0:-4] in test_ids]
             else:
-                print('Unknown split: %s. Exiting..' % (split))
+                LOGGER.error("Unknown split: %s. Exiting..", split)
                 exit(-1)
 
             # print(os.path.basename(fns))

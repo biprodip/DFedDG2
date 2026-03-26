@@ -22,6 +22,7 @@ ID vs. OOD classes:
 
 import os
 import copy
+import logging
 import torch
 import random
 import json
@@ -35,6 +36,8 @@ from sklearn import metrics
 # from data.data_utils import DatasetSplit
 from lib.data_utils import DatasetSplit
 from sklearn.preprocessing import label_binarize
+
+LOGGER = logging.getLogger(__name__)
 
 
 
@@ -96,17 +99,16 @@ class ClientDecoodVMF():
                 dataset_train, list(user_data_idx_train), None, None)
 
         self.train_size = len(self.train_loader.dataset)
-        self.unc = -1  # Sentinel: -1 means uncertainty not yet computed for this round
 
         self.num_classes = args.num_classes
         self.sample_per_class = torch.zeros(self.num_classes)       # Per-class train sample counts
         self.test_sample_per_class = torch.zeros(self.num_classes)  # Per-class test sample counts
 
-        print(f'Cluster:{self.cluster}')
+        LOGGER.info("Cluster: %s", self.cluster)
         for x, y, _ in self.train_loader:
             for yy in y:
                 self.sample_per_class[yy.item()] += 1
-        print(f'Client id: {self.id}, Train dist: {self.sample_per_class}')
+        LOGGER.info("Client id: %s, Train dist: %s", self.id, self.sample_per_class)
 
         # ID labels: classes that appear in this client's local training data
         self.id_labels = [i for i in range(self.num_classes) if self.sample_per_class[i] > 0]
@@ -114,8 +116,8 @@ class ClientDecoodVMF():
         for x, y, _ in self.test_loader:
             for yy in y:
                 self.test_sample_per_class[yy.item()] += 1
-        print(f'Client id: {self.id}, Test dist: {self.test_sample_per_class}')
-        print(f'Client data count: Train: {len(self.train_loader.dataset)} Test: {len(self.test_loader.dataset)}\n')
+        LOGGER.info("Client id: %s, Test dist: %s", self.id, self.test_sample_per_class)
+        LOGGER.info("Client data count: Train: %s Test: %s", len(self.train_loader.dataset), len(self.test_loader.dataset))
 
         # OOD labels: classes absent from local training data
         self.ood_labels = [l for l in range(args.num_classes) if l not in self.id_labels]
@@ -164,7 +166,6 @@ class ClientDecoodVMF():
         self.agg_count = 1     # Number of nodes whose parameters have been folded in so far
 
         # Per-round performance history (local and global evaluation)
-        self.unc = 0
         self.l_test_acc_hist = []
         self.l_test_auc_hist = []
         self.l_test_unc_hist = []
@@ -216,7 +217,7 @@ class ClientDecoodVMF():
         
         if (dataset_test is not None) and (test_idxs is not None):
             validloader = None
-            print('No validation set.')
+            # print('No validation set.')
             testloader = torch.utils.data.DataLoader(DatasetSplit(dataset_test, idxs_test),
                                 batch_size=self.local_bs, shuffle=False, drop_last=False)
         else:
@@ -260,7 +261,6 @@ class ClientDecoodVMF():
         self.model.train()
 
         max_local_epochs = self.local_epochs
-        print(f'Local epoch: {max_local_epochs}')
 
         protos = defaultdict(list)
         avg_comp_loss = 0
@@ -269,6 +269,7 @@ class ClientDecoodVMF():
         avg_lp_loss = 0
 
         for epoch in range(max_local_epochs):
+ 
             for (x, y, indices) in trainloader:
 
                 x = x[0]
@@ -276,12 +277,12 @@ class ClientDecoodVMF():
                 y = y.to(self.device)
 
                 if torch.isnan(x).any():
-                    print(f"NaN in input batch {i}")
+                    LOGGER.warning("NaN in input batch with indices %s", indices.tolist())
 
                 rep = self.model.base(x)
 
                 if torch.isnan(rep).any() or torch.isinf(rep).any():
-                    print("NaN or Inf detected in base model output!")
+                    LOGGER.warning("NaN or Inf detected in base model output!")
 
                 if self.normalize:
                     rep = F.normalize(rep + 1e-8, dim=1)  # 1e-8: prevents zero-norm vectors before normalization
@@ -307,7 +308,9 @@ class ClientDecoodVMF():
                 elif self.decood_loss_code == 'ECD':
                     loss = loss_CE + self.LAMBDA * (lc + ld)
                 elif self.decood_loss_code == 'ECP':
-                    loss = loss_CE + .2 * lc + .1 * lp  # lp currently inactive
+                    raise NotImplementedError(
+                        "'ECP' loss requires prototype alignment loss (lp) which is not yet implemented."
+                    )
                 elif self.decood_loss_code == 'EC':
                     loss = loss_CE + self.LAMBDA * lc
 
@@ -332,9 +335,9 @@ class ClientDecoodVMF():
         avg_CE_loss = avg_CE_loss / (len(self.train_loader.dataset) * max_local_epochs)
         avg_comp_loss = avg_comp_loss / (len(self.train_loader.dataset) * max_local_epochs)
         avg_dis_loss = avg_dis_loss / (len(self.train_loader.dataset) * max_local_epochs)
-        avg_lp_loss = avg_lp_loss / (len(self.train_loader.dataset) * max_local_epochs)
+        # avg_lp_loss = avg_lp_loss / (len(self.train_loader.dataset) * max_local_epochs)
 
-        print(f'Client {self.id} Avg Training : LCE:{avg_CE_loss}  LC: {avg_comp_loss}   LD: {avg_dis_loss}   LP: {avg_lp_loss}')
+        # LOGGER.info("Client %s | Local epoch: %s |  Avg Training Loss : LCE: %s  LC: %s   LD: %s", self.id, epoch, avg_CE_loss, avg_comp_loss, avg_dis_loss)
 
         # Compute per-class representative prototypes from final-epoch embeddings
         self.local_protos = agg_func(self.normalize, protos, self.num_classes, self.device)
@@ -461,9 +464,9 @@ class ClientDecoodVMF():
 
     def print_protos(self):
         """Print the current DisLoss EMA prototype for each class (debug utility)."""
-        print('Dis loss proto:\n')
+        LOGGER.debug("Dis loss proto:")
         for c in range(self.num_classes):
-            print(f'Class: {c} , prototype: {self.loss_dis.prototypes[c]}')
+            LOGGER.debug("Class: %s , prototype: %s", c, self.loss_dis.prototypes[c])
 
     
  
@@ -630,11 +633,11 @@ class ClientDecoodVMF():
             # Save predictions and uncertainties to a file if saveFlag is set
             if saveFlag == 1:
                 client_id = self.id if hasattr(self, 'id') else 'unknown_client'
-                save_path = f"predictions_uncertainties_client_{client_id}.json"
+                save_path = f"logs/experiments/predictions_uncertainties_client_{client_id}.json"
                 with open(save_path, 'w') as f:
                     json.dump(results, f, indent=4)
-                print(f"Predictions and uncertainties saved to {save_path}")
-                print(f'Saved uncertainties of client {client_id}')    
+                LOGGER.info("Predictions and uncertainties saved to %s", save_path)
+                LOGGER.info("Saved uncertainties of client %s", client_id)    
 
             return test_acc / test_num, 0, 0
         else:
@@ -687,7 +690,7 @@ class ClientDecoodVMF():
             R_hat[label] = torch.norm(proto).detach()
             R_hat_sqr = R_hat[label] * R_hat[label]
             kappa_hat[label] = (R_hat[label] * (self.feat_dim - R_hat_sqr)) / (1 - R_hat_sqr)
-            print(f'Label: {label}, R_hat[label]: {R_hat[label].detach()}, kappa_hat[label]: {kappa_hat[label].detach()}')
+            LOGGER.debug("Label: %s, R_hat[label]: %s, kappa_hat[label]: %s", label, R_hat[label].detach(), kappa_hat[label].detach())
 
         return kappa_hat 
         
@@ -725,9 +728,9 @@ class ClientDecoodVMF():
             tmp_local_protos = copy.deepcopy(self.local_protos)
             if rec_label is not None:
                 tmp_local_protos[rec_label] = rec_proto
-                print(f'Testing received proto of label :{rec_label} @ client : {self.id} ')
+                LOGGER.info("Testing received proto of label: %s @ client: %s", rec_label, self.id)
             else:
-                print('Evaluating misclassification on local protos')
+                LOGGER.info("Evaluating misclassification on local protos")
 
             # print('Normalize before testing ID')
             with torch.no_grad():
@@ -747,7 +750,7 @@ class ClientDecoodVMF():
                     output = float('inf') * torch.ones(y.shape[0], self.num_classes).to(self.device)
                     for i, r in enumerate(rep):
                         for j, pro in tmp_local_protos.items():
-                            if type(pro) != type([]):
+                            if not isinstance(pro, list):
                                 if self.test_on_cosine == False:
                                     output[i, j] = self.loss_mse(r, pro)   # MSE: lower = closer
                                 else:
@@ -772,14 +775,12 @@ class ClientDecoodVMF():
         representations toward the global prototype of each sample's class.
 
         Note:
-            This method calls ``self.load_train_data()`` which is not defined on
-            this class; it may be a leftover from an earlier base class. Verify
-            before calling.
+            Uses ``self.train_loader`` directly.
 
         Returns:
             tuple[float, int]: (total_loss, total_samples)
         """
-        trainloader = self.load_train_data()
+        trainloader = self.train_loader
 
         self.model.eval()
 
@@ -799,15 +800,15 @@ class ClientDecoodVMF():
 
 
                 output = self.model.head(rep)
-                loss = self.loss(output, y)
+                loss = self.loss_CE(output, y)
 
                 if self.global_protos is not None:
                     proto_new = copy.deepcopy(rep.detach())
                     for i, yy in enumerate(y):
                         y_c = yy.item()
-                        if type(self.global_protos[y_c]) != type([]):
+                        if not isinstance(self.global_protos[y_c], list):
                             proto_new[i, :] = self.global_protos[y_c].data
-                    loss += self.loss_mse(proto_new, rep) * self.lamda
+                    loss += self.loss_mse(proto_new, rep) * self.LAMBDA
                 train_num += y.shape[0]
                 losses += loss.item() * y.shape[0]
 

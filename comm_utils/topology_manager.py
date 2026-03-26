@@ -21,10 +21,13 @@ update_adjacency_matrix           : Re-weight edges by class-count overlap
 """
 
 import os
+import logging
 import pickle
 import networkx as nx
 import numpy as np
 from comm_utils.mst import *
+
+LOGGER = logging.getLogger(__name__)
 
 
 def generate_asymmetric_topology(undirected_neighbor_num, num_clients):
@@ -46,59 +49,59 @@ def generate_asymmetric_topology(undirected_neighbor_num, num_clients):
         np.ndarray: [N × N] row-normalised (asymmetric) adjacency matrix.
     """
     n = num_clients
-        # randomly add some links for each node (symmetric)
-        k = undirected_neighbor_num
-        # print("neighbors = " + str(k))
-        #topology_random_link = np.array(nx.to_numpy_matrix(nx.watts_strogatz_graph(n, k, 0)), dtype=np.float32)
-        topology_random_link = nx.to_numpy_array(nx.watts_strogatz_graph(n, k, 0))
+    # randomly add some links for each node (symmetric)
+    k = undirected_neighbor_num
+    # print("neighbors = " + str(k))
+    #topology_random_link = np.array(nx.to_numpy_matrix(nx.watts_strogatz_graph(n, k, 0)), dtype=np.float32)
+    topology_random_link = nx.to_numpy_array(nx.watts_strogatz_graph(n, k, 0))
 
-        # print("randomly add some links for each node (symmetric): ")
-        print(f'Random topology:{topology_random_link}')
+    # print("randomly add some links for each node (symmetric): ")
+    LOGGER.debug("Random topology: %s", topology_random_link)
 
-        # first generate a ring topology
-        topology_ring = nx.to_numpy_array(nx.watts_strogatz_graph(n, 2, 0))
+    # first generate a ring topology
+    topology_ring = nx.to_numpy_array(nx.watts_strogatz_graph(n, 2, 0))
 
-        for i in range(n):
-            for j in range(n):
-                if topology_ring[i][j] == 0 and topology_random_link[i][j] == 1:
-                    topology_ring[i][j] = topology_random_link[i][j]
+    for i in range(n):
+        for j in range(n):
+            if topology_ring[i][j] == 0 and topology_random_link[i][j] == 1:
+                topology_ring[i][j] = topology_random_link[i][j]
 
-        np.fill_diagonal(topology_ring, 1)
+    np.fill_diagonal(topology_ring, 1)
 
-        # k_d = self.out_directed_neighbor
-        # Directed graph
-        # Undirected graph
-        # randomly delete some links
-        out_link_set = set()
-        for i in range(n):
-            len_row_zero = 0
-            for j in range(n):
-                if topology_ring[i][j] == 0:
-                    len_row_zero += 1
-            random_selection = np.random.randint(2, size=len_row_zero)
-            # print(random_selection)
-            index_of_zero = 0
-            for j in range(n):
-                out_link = j * n + i
-                if topology_ring[i][j] == 0:
-                    if random_selection[index_of_zero] == 1 and out_link not in out_link_set:
-                        topology_ring[i][j] = 1
-                        out_link_set.add(i * n + j)
-                    index_of_zero += 1
+    # k_d = self.out_directed_neighbor
+    # Directed graph
+    # Undirected graph
+    # randomly delete some links
+    out_link_set = set()
+    for i in range(n):
+        len_row_zero = 0
+        for j in range(n):
+            if topology_ring[i][j] == 0:
+                len_row_zero += 1
+        random_selection = np.random.randint(2, size=len_row_zero)
+        # print(random_selection)
+        index_of_zero = 0
+        for j in range(n):
+            out_link = j * n + i
+            if topology_ring[i][j] == 0:
+                if random_selection[index_of_zero] == 1 and out_link not in out_link_set:
+                    topology_ring[i][j] = 1
+                    out_link_set.add(i * n + j)
+                index_of_zero += 1
 
-        # print("asymmetric topology:")
-        # print(topology_ring)
+    # print("asymmetric topology:")
+    # print(topology_ring)
 
-        for i in range(n):
-            row_len_i = 0
-            for j in range(n):
-                if topology_ring[i][j] == 1:
-                    row_len_i += 1
-            topology_ring[i] = topology_ring[i] / row_len_i
+    for i in range(n):
+        row_len_i = 0
+        for j in range(n):
+            if topology_ring[i][j] == 1:
+                row_len_i += 1
+        topology_ring[i] = topology_ring[i] / row_len_i
 
-        # print("weighted asymmetric confusion matrix:")
-        # print(topology_ring)
-        return topology_ring
+    # print("weighted asymmetric confusion matrix:")
+    # print(topology_ring)
+    return topology_ring
 
 
 
@@ -119,27 +122,27 @@ def generate_symmetric_ring_topology(num_clients):
         np.ndarray: [N × N] symmetric, doubly-stochastic mixing matrix.
     """
     n = num_clients
-        # first generate a ring topology
-        # ring by connecting only to 2 neighbors
-        topology_ring = nx.to_numpy_array(nx.watts_strogatz_graph(n, 2, 0))
-        #print(topology_ring)
+    # first generate a ring topology
+    # ring by connecting only to 2 neighbors
+    topology_ring = nx.to_numpy_array(nx.watts_strogatz_graph(n, 2, 0))
+    #print(topology_ring)
 
 
-        # # generate symmetric topology
-        topology_symmetric = topology_ring.copy()
+    # # generate symmetric topology
+    topology_symmetric = topology_ring.copy()
 
-        #make it doubly stochastic
-        for i in range(n):
-            row_len_i = 0
-            for j in range(n):
-                if topology_symmetric[i][j] == 1:
-                    row_len_i += 1
-            topology_symmetric[i] = topology_symmetric[i] / row_len_i
-        # print("weighted symmetric confusion matrix:")
-        
-        #print(f'topology_symmetric_ring :\n {topology_symmetric}')
+    #make it doubly stochastic
+    for i in range(n):
+        row_len_i = 0
+        for j in range(n):
+            if topology_symmetric[i][j] == 1:
+                row_len_i += 1
+        topology_symmetric[i] = topology_symmetric[i] / row_len_i
+    # print("weighted symmetric confusion matrix:")
 
-        return topology_symmetric
+    #print(f'topology_symmetric_ring :\n {topology_symmetric}')
+
+    return topology_symmetric
 
 
 
@@ -163,37 +166,35 @@ def generate_symmetric_topology(neighbor_num, num_clients):
     Returns:
         np.ndarray: [N × N] row-normalised symmetric mixing matrix.
     """
-        
-        
-        n = num_clients
-        # first generate a ring topology
-        # ring by connecting only to 2 neighbors
-        topology_ring = nx.to_numpy_array(nx.watts_strogatz_graph(n, 2, 0))
-        # print(topology_ring)
+    n = num_clients
+    # first generate a ring topology
+    # ring by connecting only to 2 neighbors
+    topology_ring = nx.to_numpy_array(nx.watts_strogatz_graph(n, 2, 0))
+    # print(topology_ring)
 
-        # randomly add some links for each node (symmetric)
-        k = int(neighbor_num)
-        topology_random_link = nx.to_numpy_array(nx.watts_strogatz_graph(n, k, 0))
-        # print(f"Random link (symmetric): {topology_random_link}")
+    # randomly add some links for each node (symmetric)
+    k = int(neighbor_num)
+    topology_random_link = nx.to_numpy_array(nx.watts_strogatz_graph(n, k, 0))
+    # print(f"Random link (symmetric): {topology_random_link}")
 
-        # generate symmetric topology
-        topology_symmetric = topology_ring.copy()
-        for i in range(n):
-            for j in range(n):
-                if topology_symmetric[i][j] == 0 and topology_random_link[i][j] == 1:
-                    topology_symmetric[i][j] = topology_random_link[i][j]
-        np.fill_diagonal(topology_symmetric, 1)
-        # print(f"Symmetric topology: {topology_symmetric}")
+    # generate symmetric topology
+    topology_symmetric = topology_ring.copy()
+    for i in range(n):
+        for j in range(n):
+            if topology_symmetric[i][j] == 0 and topology_random_link[i][j] == 1:
+                topology_symmetric[i][j] = topology_random_link[i][j]
+    np.fill_diagonal(topology_symmetric, 1)
+    # print(f"Symmetric topology: {topology_symmetric}")
 
-        for i in range(n):
-            row_len_i = 0
-            for j in range(n):
-                if topology_symmetric[i][j] == 1:
-                    row_len_i += 1
-            topology_symmetric[i] = topology_symmetric[i] / row_len_i
-        # print(f"Weighted symmetric confusion matrix: {topology_symmetric}")
+    for i in range(n):
+        row_len_i = 0
+        for j in range(n):
+            if topology_symmetric[i][j] == 1:
+                row_len_i += 1
+        topology_symmetric[i] = topology_symmetric[i] / row_len_i
+    # print(f"Weighted symmetric confusion matrix: {topology_symmetric}")
 
-        return topology_symmetric
+    return topology_symmetric
 
 
 
@@ -234,18 +235,18 @@ def topology_manager(args):
         with open('data/'+filename+str(args.num_clients)+'.pkl', 'rb') as f:
             mixing_mat, mst = pickle.load(f)
             f.close()
-            print('Adjacency and MST Loaded from file')
+            LOGGER.info("Adjacency and MST Loaded from file")
             if(args.topo=='sparse'):
-                print('Using nx.watts_strogatz_graph for sparse topology.')
+                LOGGER.info("Using nx.watts_strogatz_graph for sparse topology.")
     else:
         if args.topo == 'fc':
-            print('Using fc topology')
-            mixing_mat = generate_symmetric_topology(args.num_clients, args.num_clients)    
+            LOGGER.info("Using fc topology")
+            mixing_mat = generate_symmetric_topology(args.num_clients, args.num_clients)
         elif args.topo == 'ring':
-            print('Using ring topology')
+            LOGGER.info("Using ring topology")
             mixing_mat = generate_symmetric_ring_topology(args.num_clients)
         elif args.topo == 'sparse':
-            print('Using nx.watts_strogatz_graph for sparse topology.')
+            LOGGER.info("Using nx.watts_strogatz_graph for sparse topology.")
             mixing_mat = generate_symmetric_topology(args.sparse_neighbors, args.num_clients)
         
 
@@ -254,9 +255,7 @@ def topology_manager(args):
         with open('data/'+filename+str(args.num_clients)+'.pkl', 'wb') as f: 
             pickle.dump([mixing_mat,mst], f)
             f.close()
-            print('Adjacency and MST Saved in'+'data/'+filename+str(args.num_clients)+'.pkl')
-
-        # print(adj_mat)
+            LOGGER.info("Adjacency and MST Saved in %s", 'data/'+filename+str(args.num_clients)+'.pkl')
     
     return mixing_mat
 
@@ -297,7 +296,7 @@ def update_adjacency_matrix(adj, clients, num_classes, alpha=None):
         Updated doubly stochastic adjacency matrix.
     """
     num_clients = len(adj)
-    print(f'Total clients: {num_clients}')
+    LOGGER.info("Total clients: %s", num_clients)
     
     if alpha is None:
         alpha = np.ones(num_classes)  # Equal weight for all classes
@@ -321,5 +320,5 @@ def update_adjacency_matrix(adj, clients, num_classes, alpha=None):
     # Normalize rows and columns to make the matrix doubly stochastic
     adj = sinkhorn_normalization(adj)
 
-    print(f'Adjacency matrix after normalization:\n{adj}')
+    LOGGER.debug("Adjacency matrix after normalization:\n%s", adj)
     return adj
