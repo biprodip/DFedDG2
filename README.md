@@ -1,7 +1,7 @@
 # DFedDG2 — Distribution Guided Gossip Based Generalizable and Communication Efficient Decentralized Federated Learning
 
 
-This is the official pytorch implementation of the paper [DFedDG2](https://ieeexplore.ieee.org/document/11408173). In collaborative intelligence (e.g. multiple IoT devices, robots or AI agents sharing knowledge), peers can both guide and misguide the learning process. A central server to orchestrate this knowledge sharing and learning (traditional FL) becomes a communication bottleneck, a single point of failure, and a security risk. But removing the centralized orchestration and non-iid data, changes the learning dynamics. So, the challenge of drift increases. Our solution tackles client drift that happens because of collaboration of agents/clients that are assigned different tasks.
+This is the official pytorch implementation of the paper [DFedDG2](https://ieeexplore.ieee.org/document/11408173). In collaborative intelligence (e.g. multiple IoT devices, robots or AI agents sharing knowledge), peers can both guide and misguide the learning process. A central server to orchestrate this knowledge sharing and learning (traditional FL) becomes a communication bottleneck, a single point of failure, and a security risk. But removing the centralized orchestration and non-iid data, changes the learning dynamics. So, the challenge of drift increases. Our solution tackles client drift that happens because of collaboration of agents/clients/robots that are assigned different tasks.
 
 
 Technically we,
@@ -13,7 +13,6 @@ Technically we,
 
 ## Table of Contents
 
-- [Overview](#overview)
 - [Method](#method)
 - [Installation](#installation)
 - [Dataset Setup](#dataset-setup)
@@ -25,19 +24,6 @@ Technically we,
 - [Project Structure](#project-structure)
 
 ---
-
-## Overview
-
-In DFedDG2, each client:
-1. Trains locally using a backbone + classification head with custom losses (compactness + dispersion).
-2. Computes per-class mean and dispersion based on embeddings from its local data.
-3. Exchanges this distributional information with graph neighbors via **vMF-likelihood-weighted gossip** — neighbors whose distributions better explain a client's local features receive higher weight.
-4. Aggregates received information and injects them into its local DisLoss buffer for the next round.
-
-This approach handles both **feature heterogeneity** (different domains across clients) and **label heterogeneity** (non-IID class distributions).
-
----
-
 ## Method
 
 ### vMF Gossip Communication
@@ -47,7 +33,7 @@ Each round proceeds in five phases:
 | Phase | Description |
 |-------|-------------|
 | 1. Dynamic Topology | Resample an Erdős–Rényi graph (p=0.5) per round and Sinkhorn-balance the mixing matrix |
-| 2. Local Update | Each client trains for `local_epochs` using CE + CompLoss + DisLoss |
+| 2. Local Update | Each client trains for `local_epochs` using CE + CompLoss + DisLoss aligning local knowledge to global knowledge|
 | 3. Weight Computation | For each client, compute vMF log-likelihoods of local features under each neighbor's embedding distribution; softmax-normalize to gossip weights w_j |
 | 4. Aggregation | Collect weighted neighbor aggregated embeddings and dispersion; estimate per-class vMF concentration κ̂  |
 | 5. Post-Gossip Injection | Commit aggregated prototypes to `global_protos`; inject into DisLoss EMA buffer |
@@ -128,12 +114,12 @@ Key config variables in the script:
 ```powershell
 $dataset        = "office"         # "office" | "digit" | "domainnet"
 $num_clients    = 4                # 4 for office, 5 for digit, 20 for domainnet
-$num_classes    = 10               # 10 for office/digit, 345 for domainnet
-$feature_iid    = 1                # 1 = same domain per client, 0 = cross-domain
+$num_classes    = 10               # 10 for office/digit, 10/345 for domainnet
+$feature_iid    = 1                # 1 = identical feature distribution per client
 $label_iid      = 0                # 0 = Dirichlet non-IID labels, 1 = IID labels
 $lr             = 0.1              # 0.3 recommended for digits
-$num_rounds     = 20
-$backbone       = "mobilenet_proj" # "resnet18_proj" | "resnet34_proj" | "CNNMnist"
+$num_rounds     = 50
+$backbone       = "mobilenet_proj" # "resnet18_proj" | "resnet34_proj" |ViT
 $data_dir       = "../../data/"
 ```
 
@@ -179,7 +165,7 @@ python run_trainer_dfeddg2.py \
 |---------|----------------|----------------|--------|--------------|
 | `office` | 4 | 10 | 0.1 | `mobilenet_proj` |
 | `digit` | 5 | 10 | 0.3 | `mobilenet_proj` |
-| `domainnet` | 5/50/100 | 10/345 | 0.01 | `mobilenet_proj` |
+| `domainnet` | 5/50/100 | 10/345 | 0.01 | `mobilenet_proj`, `resnet`, `ViT` |
 
 ---
 
@@ -270,29 +256,6 @@ python run_trainer_dfeddg2.py \
 | Dynamic | any | `1` | Resample Erdős–Rényi (p=0.5) each round |
 
 With `--weighted_adj_mat 1`, edge weights are proportional to the local class distribution similarity between neighbors, encouraging data-heterogeneity-aware communication.
-
----
-
-## Loss Functions
-
-### CompLoss — Compactness Loss
-Pulls each sample's embedding toward its ground-truth class prototype:
-
-```
-L_comp = -(τ/τ_base) · mean[ log( exp(f·μ_y/τ) / Σ_c exp(f·μ_c/τ) ) ]
-```
-
-### DisLoss — Dispersion Loss
-Pushes apart inter-class prototypes using an EMA-updated prototype bank. Also estimates the vMF concentration parameter κ̂ per class (Hornik & Grün, 2014):
-
-```
-κ̂ = R̂·(d - R̂²) / (1 - R̂²),   where R̂ = ||mean feature vector||
-
-L_dis = (τ/τ_base) · mean_c[ log( Σ_{c'≠c} exp(μ_c·μ_c'/τ) ) ]
-```
-
-### SupConLoss — Supervised Contrastive Loss
-Standard supervised contrastive loss (Khosla et al., NeurIPS 2020) with temperature scaling. Used internally during local training.
 
 ---
 
