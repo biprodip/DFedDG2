@@ -46,19 +46,19 @@ Each round proceeds in five phases:
 
 | Phase | Description |
 |-------|-------------|
-| 1. Dynamic Topology | Optionally resample an Erdős–Rényi graph (p=0.5) per round and Sinkhorn-balance the mixing matrix |
+| 1. Dynamic Topology | Resample an Erdős–Rényi graph (p=0.5) per round and Sinkhorn-balance the mixing matrix |
 | 2. Local Update | Each client trains for `local_epochs` using CE + CompLoss + DisLoss |
-| 3. Weight Computation | For each client, compute vMF log-likelihoods of local features under each neighbor's prototype distribution; softmax-normalize to gossip weights w_j |
-| 4. Prototype Aggregation | Collect weighted neighbor prototypes; estimate per-class vMF concentration κ̂ via Hornik & Grün (2014) |
+| 3. Weight Computation | For each client, compute vMF log-likelihoods of local features under each neighbor's embedding distribution; softmax-normalize to gossip weights w_j |
+| 4. Aggregation | Collect weighted neighbor aggregated embeddings and dispersion; estimate per-class vMF concentration κ̂  |
 | 5. Post-Gossip Injection | Commit aggregated prototypes to `global_protos`; inject into DisLoss EMA buffer |
 
 ### Loss Variants (`--decood_loss_code`)
 
 | Code | Formula | Notes |
 |------|---------|-------|
-| `EC` | CE + λ·CompLoss | **Recommended default** |
+| `EC` | CE + $\lambda$·CompLoss | **Recommended default** |
 | `CD` | CompLoss + DisLoss | No cross-entropy |
-| `ECD` | CE + λ·(CompLoss + DisLoss) | Full DECOOD |
+| `ECD` | CE + $\lambda$·(CompLoss + DisLoss) | All components |
 
 ---
 
@@ -102,11 +102,11 @@ All datasets should be placed in `../../data/` relative to the repo root (two le
 
 ### Download Links
 
-| Dataset | Classes | Clients | Download |
-|---------|---------|---------|----------|
-| **Office-10** (Office-31 subset) | 10 | 4 | [Office-31](https://faculty.cc.gatech.edu/~judy/domainadapt/) |
-| **Digits-5** | 10 | 5 | [MNIST-M](https://github.com/pumpikano/tf-dann), [SVHN](http://ufldl.stanford.edu/housenumbers/), [USPS](https://git-disl.github.io/GTDLBench/datasets/usps_dataset/), [SynthDigits](https://rodsmith.nz/synthetic-digits/) |
-| **DomainNet** | 345 | 20 | [DomainNet](http://ai.bu.edu/M3SDA/) |
+| Dataset |  Download |
+|---------|----------|
+| **Office-10** (Office-31 subset) | [Office-31](https://drive.google.com/drive/folders/1SJLhRiXbAwNpbgFXIg2KQRBZA5ZYQ62W?usp=share_link) |
+| **Digits-5** |  [MNIST-M](https://github.com/pumpikano/tf-dann), [SVHN](http://ufldl.stanford.edu/housenumbers/), [USPS](https://git-disl.github.io/GTDLBench/datasets/usps_dataset/), [SynthDigits](https://rodsmith.nz/synthetic-digits/), [Digits5](https://drive.google.com/file/d/1A4RJOFj4BJkmliiEL7g9WzNIDUHLxfmm/view) |
+| **DomainNet** | [DomainNet](https://drive.google.com/drive/folders/1SJLhRiXbAwNpbgFXIg2KQRBZA5ZYQ62W?usp=share_link) |
 
 After downloading, update `--data_dir` in the script if your path differs from `../../data/`.
 
@@ -179,7 +179,7 @@ python run_trainer_dfeddg2.py \
 |---------|----------------|----------------|--------|--------------|
 | `office` | 4 | 10 | 0.1 | `mobilenet_proj` |
 | `digit` | 5 | 10 | 0.3 | `mobilenet_proj` |
-| `domainnet` | 20 | 345 | 0.1 | `resnet18_proj` |
+| `domainnet` | 5/50/100 | 10/345 | 0.01 | `mobilenet_proj` |
 
 ---
 
@@ -302,9 +302,9 @@ After training, the following files are written:
 
 | File | Location | Contents |
 |------|----------|----------|
-| `acc_mtx_*.pkl` | `results/` | `[num_trials × num_clients]` accuracy matrix |
-| `avg_local_acc_*.pkl` | `results/` | Per-round average accuracy history per trial |
-| `id_loaders_*_client_N.pkl` | `params/` | Client N's local prototypes, global prototypes, accuracy history |
+| `*.pkl` | `results/` | `[num_trials × num_clients]` accuracy matrix |
+| `*.pkl` | `results/` | Per-round average accuracy history per trial |
+| `*.pkl` | `params/` | Client N's local prototypes, global prototypes, accuracy history |
 | `*.log` | `logs/experiments/` | Full training log with timestamps |
 
 Filenames encode the full experiment config, e.g.:
@@ -361,7 +361,8 @@ DFedDG2/
 
 ---
 
-## Bibtex
+## Citation
+If you find DFedDG2 helpful, please consider citing our paper:
 
 ```
 @ARTICLE{11408173,
