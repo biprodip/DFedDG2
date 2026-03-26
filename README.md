@@ -1,6 +1,13 @@
-# DFedDG2 — Decentralized Federated Domain Generalization
+# DFedDG2 — Distribution Guided Gossip Based Generalizable and Communication Efficient Decentralized Federated Learning
 
-DFedDG2 is a serverless decentralized federated learning framework for domain generalization. Clients communicate directly over a graph topology, exchanging per-class prototype embeddings weighted by von Mises-Fisher (vMF) likelihood — no central server required.
+
+This is the official pytorch implementation of the paper [DFedDG2](https://ieeexplore.ieee.org/document/11408173). In collaborative intelligence (e.g. multiple IoT devices, robots or AI agents sharing knowledge), peers can both guide and misguide the learning process. A central server to orchestrate this knowledge sharing and learning (traditional FL) becomes a communication bottleneck, a single point of failure, and a security risk. But removing the centralized orchestration and non-iid data, changes the learning dynamics. So, the challenge of drift increases. Our solution tackles client drift that happens because of collaboration of agents/clients that are assigned different tasks.
+
+
+Technically we,
+1. Modeled knowledge sharing on the hypersphere using direction-sensitive vMF distributions (implicitly mixture of vMF).
+2. Designed a distribution-aware gossip mechanism, modelling uncertainty explicitly.
+3. Achieved a theoretical sublinear convergence rate and a strictly smaller consensus error than uniform gossip.
 
 ---
 
@@ -22,10 +29,10 @@ DFedDG2 is a serverless decentralized federated learning framework for domain ge
 ## Overview
 
 In DFedDG2, each client:
-1. Trains locally using a backbone + classification head with DECOOD losses (compactness + dispersion).
-2. Computes per-class mean prototype embeddings from its local data.
-3. Exchanges prototypes with graph neighbors via **vMF-likelihood-weighted gossip** — neighbors whose prototype distributions better explain a client's local features receive higher weight.
-4. Aggregates received prototypes and injects them into its local DisLoss buffer for the next round.
+1. Trains locally using a backbone + classification head with custom losses (compactness + dispersion).
+2. Computes per-class mean and dispersion based on embeddings from its local data.
+3. Exchanges this distributional information with graph neighbors via **vMF-likelihood-weighted gossip** — neighbors whose distributions better explain a client's local features receive higher weight.
+4. Aggregates received information and injects them into its local DisLoss buffer for the next round.
 
 This approach handles both **feature heterogeneity** (different domains across clients) and **label heterogeneity** (non-IID class distributions).
 
@@ -354,14 +361,18 @@ DFedDG2/
 
 ---
 
-## References
+## Bibtex
 
-- Khosla et al., "Supervised Contrastive Learning", NeurIPS 2020.
-- Hornik & Grün, "movMF: An R Package for Fitting Mixtures of von Mises-Fisher Distributions", JSS 2014.
-- Kim et al., "Proxy Anchor Loss for Deep Metric Learning", CVPR 2020.
+@ARTICLE{11408173,
+  author={Pal, Biprodip and Funiak, Stano and Liu, Jiajun and Moghadam, Peyman and Islam, Md. Saiful and Liew, Alan Wee-Chung},
+  journal={IEEE Internet of Things Journal}, 
+  title={DFedDG2: Distribution Guided Gossip Based Generalizable and Communication Efficient Decentralized Federated Learning}, 
+  year={2026},
+  volume={},
+  number={},
+  pages={1-1},
+  keywords={Data models;Servers;Computational modeling;Uncertainty;Federated learning;Training;Peer-to-peer computing;Topology;Prototypes;Convergence;Decentralized federated learning;Gossip;Contrastive learning;Non-IID;Peer-to-Peer},
+  doi={10.1109/JIOT.2026.3667408}}
 
----
 
-## License
 
-See `LICENSE` for details.
