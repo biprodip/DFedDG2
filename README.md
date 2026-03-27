@@ -199,7 +199,7 @@ python run_trainer_dfeddg2.py \
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--dataset` | `cifar10` | Dataset: `office` \| `digit` \| `domainnet` |
+| `--dataset` | `digit` | Dataset: `office` \| `digit` \| `domainnet` |
 | `--num_classes` | `10` | Number of classes |
 | `--feature_iid` | `0` | `1` = IID features (same domain), `0` = non-IID (cross-domain) |
 | `--label_iid` | `1` | `1` = IID labels, `0` = Dirichlet non-IID labels |
