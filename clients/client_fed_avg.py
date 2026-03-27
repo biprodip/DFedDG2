@@ -304,7 +304,7 @@ class ClientFedAvg():
 
 
                 tmp_out = F.softmax(output,dim=1)
-                entr = (-(tmp_out.mul(tmp_out.add(eps).log())).sum(dim=1)) ############### global #sum accross every sample (batch size x 1)
+                entr = (-(tmp_out.mul(tmp_out.add(eps).log())).sum(dim=1)) #global #sum accross every sample (batch size x 1)
                 unc += sum(entr) #sum of batch (single value)
                 
                 loss = self.loss(output, y)
