@@ -44,8 +44,8 @@ Each round proceeds in five phases:
 |-------|-------------|
 | 1. Dynamic Topology | Resample an Erdős–Rényi graph (p=0.5) per round and Sinkhorn-balance the mixing matrix |
 | 2. Local Update | Each client trains for `local_epochs` using CE + CompLoss + DisLoss aligning local knowledge to global knowledge|
-| 3. Weight Computation | For each client, compute vMF log-likelihoods of local features under each neighbor's embedding distribution; softmax-normalize to gossip weights w_j |
-| 4. Aggregation | Collect weighted neighbor aggregated embeddings and dispersion; estimate per-class vMF concentration κ̂  |
+| 3. Weight Computation | For each client, compute vMF log-likelihoods of local features under each neighbor's embedding distribution; softmax-normalize to compute gossip weights |
+| 4. Aggregation | Collect weighted neighbor aggregated embeddings and dispersion; estimate per-class vMF concentration $\hat{\kappa}$ |
 | 5. Post-Gossip Injection | Commit aggregated embeddings to `global_protos`; inject into DisLoss EMA buffer |
 
 ### Loss Variants (`--decood_loss_code`)
