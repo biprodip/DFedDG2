@@ -743,7 +743,7 @@ class ClientDecoodVMF():
                     rep = self.model.base(x)
 
                     if self.normalize:
-                        rep = F.normalize(rep, dim=1)                                                #Close it if normalize in the loss ###################*************
+                        rep = F.normalize(rep, dim=1)    #Close it if normalize in the loss 
 
 
                     # Initialize with +inf; valid prototype slots will be overwritten below
@@ -796,7 +796,7 @@ class ClientDecoodVMF():
                 rep = self.model.base(x)
 
                 if self.normalize:
-                    rep = F.normalize(rep, dim=1)        #Close it if normalize in the loss ###################
+                    rep = F.normalize(rep, dim=1)        #Close it if normalize in the loss 
 
 
                 output = self.model.head(rep)
