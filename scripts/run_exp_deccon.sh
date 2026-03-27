@@ -75,8 +75,6 @@ params_dir='params/'
 # seed=1234
 
 # ----------------- Setup -----------------
-# cd '/scratch3/pal194/deccon/'
-
 # Ensure log and result folders exist
 cd ..
 mkdir -p logs/experiments
@@ -92,7 +90,7 @@ timestamp="$(date +%Y%m%d_%H%M%S)"
 log_file="logs/experiments/${algorithm}_${comm}_${dataset}_fi${feature_iid}_li${label_iid}_topo${topo}_dist_${dist}_clients${num_clients}_${timestamp}.log"
 
 # ----------------- Run -----------------
-"C:\Users\bipro\miniconda3\envs\FedAPTDAT\python.exe" run_trainer_dfeddg2.py \
+python run_trainer_dfeddg2.py \
   --algorithm "${algorithm}" \
   --comm "${comm}" \
   --topo "${topo}" \
