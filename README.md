@@ -4,6 +4,9 @@
 This is the official pytorch implementation of the paper [DFedDG2](https://ieeexplore.ieee.org/document/11408173). In collaborative intelligence (e.g. multiple IoT devices, robots or AI agents sharing knowledge), peers can both guide and misguide the learning process. A central server to orchestrate this knowledge sharing and learning (traditional FL) becomes a communication bottleneck, a single point of failure, and a security risk. But removing the centralized orchestration and non-iid data, changes the learning dynamics. So, the challenge of drift increases. Our solution tackles client drift that happens because of collaboration of agents/clients/robots that are assigned different tasks.
 
 
+![DFedDG2](DFedDG2_network.pdf)
+
+
 ![DFedDG2 accuracy bar chart](results/dfeddg2_avg_accuracy_bar_chart.png)
 
 
@@ -229,11 +232,11 @@ python run_trainer_dfeddg2.py \
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--decood_loss_code` | `CD` | Loss variant: `EC` \| `CD` \| `ECD` |
-| `--LAMBDA` | `0.2` | Weight λ for DECOOD loss terms |
+| `--LAMBDA` | `0.2` | Weight $\lambda$ for DECOOD loss terms |
 | `--tau` | `0.1` | Temperature for contrastive losses |
 | `--proto_m` | `0.5` | EMA momentum for prototype updates in DisLoss |
 | `--test_on_cosine` | `False` | Use cosine similarity for prototype-based inference (vs. MSE) |
-| `--sel_on_kappa` | `True` | Select prototypes weighted by vMF concentration κ̂ |
+| `--sel_on_kappa` | `True` | Select prototypes weighted by vMF concentration $\hat_\kappa$ |
 
 ### Topology
 
@@ -345,6 +348,4 @@ If you find DFedDG2 helpful, please consider citing our paper:
   pages={1-1},
   keywords={Data models;Servers;Computational modeling;Uncertainty;Federated learning;Training;Peer-to-peer computing;Topology;Prototypes;Convergence;Decentralized federated learning;Gossip;Contrastive learning;Non-IID;Peer-to-Peer},
   doi={10.1109/JIOT.2026.3667408}}
-
-
-
+```
