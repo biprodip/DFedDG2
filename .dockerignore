@@ -1,0 +1,38 @@
+# Version control
+.git/
+.gitignore
+
+# Data — mounted at runtime via -v, never baked into image
+data/
+
+# Runtime outputs — mounted at runtime
+results/
+params/
+logs/
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Conda / pip cache
+*.egg-info/
+.eggs/
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Claude memory
+.claude/
+
+# Large binary files
+*.pkl
+*.pt
+*.pth
+*.h5
