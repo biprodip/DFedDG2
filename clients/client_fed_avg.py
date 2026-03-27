@@ -156,19 +156,11 @@ class ClientFedAvg():
 
 
     def update(self):
-        # if self.req_avg:
-        #     self.avg_model(self.adj,self.agg_count)
-
-        #trainloader = self.load_train_data()
-        
-        #start_time = time.time()
 
         self.model.to(self.device)
         self.model.train()
 
         max_local_steps = self.local_epochs
-        #if self.train_slow:
-        #    max_local_steps = np.random.randint(1, max_local_steps // 2)
 
         mean_correct_pc = []
         for step in range(max_local_steps):
@@ -183,11 +175,8 @@ class ClientFedAvg():
                 
                 x = x.to(self.device)
                 y = y.to(self.device)
-                # output = self.model(x)
 
                 if self.data_type == 'pc':
-                #    x.requires_grad = True
-                #    y.requires_grad = False
                     y = y.long()
 
 
@@ -249,15 +238,7 @@ class ClientFedAvg():
         run_agg_n_k += rec_params[1] #rec n_k
 
         for key in run_agg_model_sd.keys():
-            #run_agg_model_sd[key] *= len(self.train_loader.dataset)/m_t
-            #run_agg_model_sd[key] += rec_model[key]* (rec_dataset_len/m_t)
             run_agg_model_sd[key] += rec_model_sd[key]
-            #run_agg_model_sd[key] /= 2
-
-        #self.model.load_state_dict(run_agg_model_sd)
-        #self.agg_count += 1 #aggregated from one more node
-        #self.req_avg = True
-
 
         #print(f'Aggregation done at client {self.id}')
         return run_agg_model_sd, run_agg_n_k
