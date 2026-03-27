@@ -18,12 +18,6 @@ Additional utilities:
   - ``Proxy_Anchor``: Proxy-anchor metric learning loss (Kim et al., 2020).
   - ``binarize``: Converts integer labels to one-hot format.
   - ``l2_norm``: Row-wise L2 normalization.
-
-References:
-    SupCon: Khosla et al., "Supervised Contrastive Learning", NeurIPS 2020.
-            https://arxiv.org/abs/2004.11362
-    Proxy Anchor: Kim et al., "Proxy Anchor Loss for Deep Metric Learning", CVPR 2020.
-    vMF kappa estimation: Hornik & Grün, "movMF: An R Package ...", JSS 2014.
 """
 from __future__ import print_function
 
@@ -156,10 +150,6 @@ class CompLoss(nn.Module):
     class using a softmax cross-entropy over prototype similarities. This
     encourages intra-class compactness in the embedding space.
 
-    The loss is computed as:
-        L_comp = -(τ / τ_base) * mean_n [ log( exp(f_n · μ_{y_n} / τ) /
-                                                 Σ_c exp(f_n · μ_c / τ) ) ]
-
     where f_n is the feature of sample n, μ_c is the prototype of class c,
     and τ is the temperature.
 
@@ -233,10 +223,6 @@ class DisLoss(nn.Module):
 
     where d is the feature dimension. A high κ̂ indicates a tight, reliable
     prototype; κ̂ = 0 indicates no data was seen for that class.
-
-    The dispersion loss is:
-        L_dis = (τ / τ_base) * mean_c [ log( Σ_{c' ≠ c} exp(μ_c · μ_c' / τ) /
-                                              (num_cls - 1) ) ]
 
     Args:
         args: Global config. Requires ``num_classes``, ``feat_dim``, ``proto_m``, ``device``.
