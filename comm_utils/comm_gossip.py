@@ -31,7 +31,6 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
     '''
         
     LOGGER.info("Gossip training.")
-    # torch.manual_seed(args.global_seed)
     random.seed(args.global_seed)
     np.random.seed(args.global_seed)
 
