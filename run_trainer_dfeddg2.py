@@ -487,6 +487,7 @@ def parse_arguments() -> argparse.Namespace:
 
 def main() -> None:
     """Main entry point for running decentralized FL experiments."""
+    
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
@@ -500,6 +501,8 @@ def main() -> None:
     os.makedirs(args.save_folder_name, exist_ok=True)
     os.makedirs(args.params_dir, exist_ok=True)
 
+
+
     # Set device
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     if args.device is not None:
@@ -507,6 +510,8 @@ def main() -> None:
     else:
         device_str = "cuda" if use_cuda else "cpu"
     args.device = torch.device(device_str)
+
+
 
     # Set global seeds
     LOGGER.info("Training on device: %s", args.device)
