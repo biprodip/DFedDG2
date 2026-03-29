@@ -5,10 +5,7 @@ import json
 import time
 import random
 import numpy as np
-# from proco_utils import neighbor_gossip_weights
 import torch.nn.functional as F
-# from proco.proco import miller_recurrence      # already in ProCo repo
-# from scipy.special import ive
 from comm_utils.decentralized import *
 
 LOGGER = logging.getLogger(__name__)
@@ -37,10 +34,7 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
     # torch.manual_seed(args.global_seed)
     random.seed(args.global_seed)
     np.random.seed(args.global_seed)
-    #torch.backends.cudnn.deterministic = True
-    #torch.backends.cudnn.benchmark = False
-    # torch.autograd.set_detect_anomaly(True)
-    
+
     
     reached_consensus = False
     avg_l_acc = []
@@ -97,31 +91,17 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
         tg0 = time.perf_counter()
         # Start averaging towards the goal. Here we use equal neighbor averaging method.
         for i in range(len(clients)):
-          
-          #No_of_sample = int(len(clients)* args.sampling)
-          # random_client_ids = [random.randint(0, len(clients) - 1) for _ in range(No_of_sample)]
 
           # Select clients to train and participate in averaging
           adj_clients = [clients[c] for c in range(len(clients)) if (adj[c][i] and c!=i)]
           
-          # Random selection
-          # print('FAvg aggregation')
-          # V_set = set(range(len(adj_clients)))
-          # m = int(args.sub_mod_sel_ratio * len(adj_clients)) #select .7 of neighbors
-          # sel_neighbor_indx = np.random.choice(list(V_set), m, replace=False)
-          # Ni[i]=len(sel_neighbor_indx)+1  #including self
-                  
-          
-          #sel_neighbors = [adj_clients[j] for j in sel_neighbor_indx] 
+
           neighbors = adj_clients
 
             
           for key in clients[i].model.state_dict().keys():
               new_models[i][key] = adj[i][i] * clients[i].model.state_dict()[key]
-          
-          # for sc in neighbors:
-          #     for key in sc.model.state_dict().keys():
-          #         new_models[i][key] += adj[i][sc.id] * sc.model.state_dict()[key]
+
             
 
           for sc in neighbors:
@@ -140,50 +120,15 @@ def comm_gossip(args, adj, clients, debug=False, test_loader=None):
         tg1 = time.perf_counter()
         gossip_times.append(tg1 - tg0)        
 
-       #list every round avg performance of all clients (local test data and global test data)
-       #lacc, gacc, lauc, gauc, lunc, gunc = evaluate_clients(clients, test_loader)
+
         lacc = evaluate_clients(clients, test_loader)
         LOGGER.info("Avg ACC: %s", lacc)
         avg_l_acc.append(lacc)
-        # avg_g_acc.append(gacc)
-        # avg_l_auc.append(lauc)
-        # avg_g_auc.append(gauc)
-        # avg_l_unc.append(lunc)
-        # avg_g_unc.append(gunc)
 
-
-        
-        # Normalize the matrix
-        # Client_heat = (client_heat - np.min(client_heat)) / (np.max(client_heat) - np.min(client_heat))
-        # Set diagonal elements to zero
         np.fill_diagonal(client_heat, 0)
 
         mean_local  = sum(local_times) / len(local_times)
         mean_gossip = sum(gossip_times) / len(gossip_times) / args.num_rounds  # per round
         LOGGER.info("Mean local time: %s, Mean gossip time: %s", mean_local, mean_gossip)
 
-
-    # for c in clients:
-    #     #save client_models
-    #     filename = args.params_dir + 'checkpoint_{}_{}_client_{}.pth.tar'.format(args.algorithm, args.dataset, c.id)
-    #     torch.save({
-    #         'model_state_dict': c.model.state_dict(),
-    #         'optimizer_state_dict': c.optimizer.state_dict(),
-    #         }, filename)
-    #     print('Checkpoint file: ',filename)
-
-        
-    #     filename = args.params_dir + 'id_loaders_{}_{}_client_{}.pkl'.format(args.algorithm, args.dataset, c.id)
-    #     with open(filename, 'wb') as f:
-    #         if args.algorithm in ['FedAvg','Ditto']:
-    #             pickle.dump([c.train_loader, c.test_loader, c.id_labels], f)
-    #         else:
-    #             pickle.dump([c.train_loader, c.test_loader, c.id_labels, c.local_protos, c.global_protos], f)
-    #         print('Loaders file: ',filename)
-    #         f.close()
-
-    # print('Clients saved in file: ',filename)
-
-
-  
-    return avg_l_acc #, avg_g_acc, avg_l_auc, avg_g_auc, avg_l_unc, avg_g_unc #client_heat 
+    return avg_l_acc 
