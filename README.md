@@ -4,7 +4,7 @@
 This is the official pytorch implementation of the paper [DFedDG2](https://ieeexplore.ieee.org/document/11408173). In collaborative intelligence (e.g. multiple IoT devices, robots or AI agents sharing knowledge), peers can both guide and misguide the learning process as they perform different local tasks. A central server to orchestrate this knowledge sharing and learning (traditional FL) becomes a communication bottleneck, a single point of failure, and a security risk. But removing the centralized orchestration and non-iid data, changes the learning dynamics. So, the challenge of drift increases. Our solution tackles client drift that happens because of collaboration of agents/clients/robots that are assigned different tasks.
 
 
-![DFedDG2](DFedDG2_network.png)
+![DFedDG2](DFedDG2_network_figure.png)
 
 
 ![DFedDG2 accuracy bar chart](results/dfeddg2_avg_accuracy_bar_chart.png)
