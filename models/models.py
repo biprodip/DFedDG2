@@ -84,7 +84,7 @@ class CNNMnistMH(nn.Module):
 
 
 
-
+#model heterogenity experiments
 class CNNMnist2(nn.Module):
     def __init__(self, in_features=1, num_classes=10, dim=1024):
         super(CNNMnist, self).__init__()
