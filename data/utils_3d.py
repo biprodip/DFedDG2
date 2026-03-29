@@ -196,8 +196,6 @@ def record_net_data_stats(y_train, net_dataidx_map, logdir):
     return net_cls_counts
 
 def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
-    #np.random.seed(2020)
-    #torch.manual_seed(2020)
 
     if dataset == 'mnist':
         X_train, y_train, X_test, y_test = load_mnist_data(datadir)
@@ -260,19 +258,6 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
         np.save("data/generated/y_train.npy",y_train)
         np.save("data/generated/y_test.npy",y_test)
     
-    #elif dataset == 'covtype':
-    #    cov_type = sk.fetch_covtype('./data')
-    #    num_train = int(581012 * 0.75)
-    #    idxs = np.random.permutation(581012)
-    #    X_train = np.array(cov_type['data'][idxs[:num_train]], dtype=np.float32)
-    #    y_train = np.array(cov_type['target'][idxs[:num_train]], dtype=np.int32) - 1
-    #    X_test = np.array(cov_type['data'][idxs[num_train:]], dtype=np.float32)
-    #    y_test = np.array(cov_type['target'][idxs[num_train:]], dtype=np.int32) - 1
-    #    mkdirs("data/generated/")
-    #    np.save("data/generated/X_train.npy",X_train)
-    #    np.save("data/generated/X_test.npy",X_test)
-    #    np.save("data/generated/y_train.npy",y_train)
-    #    np.save("data/generated/y_test.npy",y_test)
 
     elif dataset in ('rcv1', 'SUSY', 'covtype'):
         X_train, y_train = load_svmlight_file(datadir+dataset)
@@ -346,8 +331,7 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
                 idx_k = np.where(y_train == k)[0]
                 np.random.shuffle(idx_k)
                 proportions = np.random.dirichlet(np.repeat(beta, n_parties))
-                # logger.info("proportions1: ", proportions)
-                # logger.info("sum pro1:", np.sum(proportions))
+
                 ## Balance
                 proportions = np.array([p * (len(idx_j) < N / n_parties) for p, idx_j in zip(proportions, idx_batch)])
                 # logger.info("proportions2: ", proportions)
@@ -357,10 +341,7 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
                 # logger.info("proportions4: ", proportions)
                 idx_batch = [idx_j + idx.tolist() for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))]
                 min_size = min([len(idx_j) for idx_j in idx_batch])
-                # if K == 2 and n_parties <= 10:
-                #     if np.min(proportions) < 200:
-                #         min_size = 0
-                #         break
+
 
 
         for j in range(n_parties):
