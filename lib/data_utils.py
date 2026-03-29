@@ -11,34 +11,6 @@ import os
 
 
 
-
-
-# class DatasetSplit(Dataset):
-#     """An abstract Dataset class wrapped around Pytorch Dataset class.
-#     """
-
-#     def __init__(self, dataset, idxs):
-#         self.dataset = dataset
-#         self.idxs = [int(i) for i in idxs]
-
-#     def __len__(self):
-#         return len(self.idxs)
-
-#     def __getitem__(self, item):
-#         image, label = self.dataset[self.idxs[item]]
-#         if isinstance(image, torch.Tensor):
-#             image = image.clone().detach()
-#         else:
-#             # image = torch.tensor(image)
-#             image = image
-#         if isinstance(label, torch.Tensor):
-#             label = label.clone().detach()
-#         else:
-#             label = torch.tensor(label)
-#         return image, label
-
-
-
 class DatasetSplit(Dataset):
     """An abstract Dataset class wrapped around Pytorch Dataset class.
     """
@@ -172,21 +144,12 @@ class Cifar10Dataset(Dataset):
             self.images = x_all[40000:, :, :]
             self.labels = y_all[40000:,]
 
-        # for i in range(len(self.paths)):
-        #     tmp = self.paths[i].split('/')[1:]
-        #     self.paths[i] = '/'.join(tmp)
-        #
-        # label_dict = {'bird': 0, 'feather': 1, 'headphones': 2, 'ice_cream': 3, 'teapot': 4, 'tiger': 5, 'whale': 6,
-        #               'windmill': 7, 'wine_glass': 8, 'zebra': 9}
-        #
-        # self.labels = [label_dict[text] for text in self.text_labels]
+
         self.transform = transform
         self.channels = 3
-        # self.base_path = base_path if base_path is not None else '../data'
 
         self.labels = self.labels.astype(np.long).squeeze()
 
-        # self.images, self.labels = torch.from_numpy(self.images), torch.from_numpy(self.labels)
 
     def __len__(self):
         return len(self.labels)
