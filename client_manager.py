@@ -34,7 +34,7 @@ def get_clients(algorithm, id, args, adj_mat, dataset_train, user_data_idx_train
             variants); ``None`` if not applicable.
 
     Returns:
-        A client object of the appropriate class for the given ``algorithm``.
+        A client object for the given ``algorithm``.
 
     Raises:
         ValueError: If ``algorithm`` is not recognised.
