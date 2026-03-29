@@ -877,8 +877,6 @@ def process_3d_pc(points, target):
         points[:,:, 0:3] = random_scale_point_cloud(points[:,:, 0:3])
         points[:,:, 0:3] = shift_point_cloud(points[:,:, 0:3])
         points = torch.Tensor(points)
-        # print(target.shape)
-        # target = target[:, 0]
         points = points.transpose(2, 1)
     
     return points, target
